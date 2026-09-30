@@ -13,6 +13,7 @@ const state = {
   payments: [],
   expenses: [],
   followups: [],
+  invoices: [],
   selectedLead: null,
   selectedCourse: null,
   loading: false
@@ -45,6 +46,7 @@ const navItems = [
   ["leads", "◎", "مشتریان"],
   ["courses", "▣", "دوره‌ها"],
   ["finance", "◈", "مالی"],
+  ["invoices", "▧", "فاکتورها"],
   ["reports", "▤", "گزارش"]
 ];
 
@@ -529,6 +531,7 @@ function render() {
     leads: renderLeads,
     courses: renderCourses,
     finance: renderFinance,
+    invoices: renderInvoices,
     reports: renderReports
   };
 
@@ -1752,6 +1755,598 @@ function renderFinance() {
   `;
 
   bindActions();
+}
+
+
+/* =========================================================
+   INVOICES / SALES RECEIPTS
+========================================================= */
+
+function buildInvoices() {
+
+  state.invoices =
+    state.payments
+      .filter(
+        p =>
+          !p.status ||
+          p.status === "approved"
+      )
+      .map((p, index) => {
+
+        const lead =
+          state.leads.find(
+            l =>
+              String(l.lead_id) ===
+              String(p.lead_id)
+          );
+
+        const student =
+          state.students.find(
+            s =>
+              String(s.student_id) ===
+              String(p.student_id)
+          );
+
+        const course =
+          state.courses.find(
+            c =>
+              String(c.course_id) ===
+              String(p.course_id)
+          );
+
+        return {
+          invoice_id:
+            p.invoice_id ||
+            p.payment_id ||
+            `INV-${String(index + 1).padStart(4, "0")}`,
+
+          payment_id:
+            p.payment_id || "",
+
+          full_name:
+            lead?.full_name ||
+            student?.full_name ||
+            p.full_name ||
+            "دانشجو",
+
+          mobile:
+            lead?.mobile ||
+            student?.mobile ||
+            p.mobile ||
+            "",
+
+          course_name:
+            course?.course_name ||
+            p.course_name ||
+            "دوره آموزشی",
+
+          course_code:
+            course?.course_code ||
+            "",
+
+          amount:
+            Number(p.amount || 0),
+
+          payment_method:
+            p.payment_method || "—",
+
+          payment_date:
+            p.payment_date ||
+            p.created_at ||
+            "",
+
+          reference_no:
+            p.reference_no || ""
+        };
+      });
+
+  return state.invoices;
+}
+
+
+function renderInvoices() {
+
+  title(
+    "فاکتورها",
+    "رسیدها و اسناد فروش آکادمی"
+  );
+
+  const invoices =
+    buildInvoices();
+
+  const total =
+    invoices.reduce(
+      (sum, x) =>
+        sum + Number(x.amount || 0),
+      0
+    );
+
+  $("#content").innerHTML = `
+
+    <div class="kpi-grid" style="margin-top:0;margin-bottom:14px">
+
+      <div class="kpi">
+        <span>تعداد فاکتورها</span>
+        <strong>${faNum(invoices.length)}</strong>
+        <small>بر اساس پرداخت‌های تأییدشده</small>
+      </div>
+
+      <div class="kpi success">
+        <span>مبلغ کل</span>
+        <strong>${money(total)}</strong>
+        <small>فروش وصول‌شده</small>
+      </div>
+
+    </div>
+
+    <section class="panel">
+
+      <div class="panel-head">
+
+        <div>
+          <h3>فاکتورهای فروش</h3>
+          <p>
+            برای مشاهده و چاپ روی هر فاکتور بزنید.
+          </p>
+        </div>
+
+        <span class="count">
+          ${faNum(invoices.length)}
+        </span>
+
+      </div>
+
+      ${
+        invoices.length
+          ? `
+            <div class="lead-list">
+
+              ${
+                invoices
+                  .slice()
+                  .reverse()
+                  .map(
+                    inv => `
+                      <button
+                        class="lead-row"
+                        data-invoice="${esc(inv.invoice_id)}"
+                      >
+
+                        <div class="avatar">
+                          ▧
+                        </div>
+
+                        <div class="lead-main">
+
+                          <b>
+                            ${esc(inv.full_name)}
+                          </b>
+
+                          <span>
+                            ${esc(inv.course_name)}
+                            ·
+                            ${dateFa(inv.payment_date)}
+                          </span>
+
+                        </div>
+
+                        <div class="lead-end">
+
+                          <b>
+                            ${money(inv.amount)}
+                          </b>
+
+                          <small>
+                            ${esc(inv.invoice_id)}
+                          </small>
+
+                        </div>
+
+                      </button>
+                    `
+                  )
+                  .join("")
+              }
+
+            </div>
+          `
+          : `
+            <div class="empty">
+              <b>هنوز فاکتوری وجود ندارد</b>
+              <span>
+                با ثبت پرداخت تأییدشده، رسید فروش اینجا ساخته می‌شود.
+              </span>
+            </div>
+          `
+      }
+
+    </section>
+  `;
+
+  $$("[data-invoice]")
+    .forEach(
+      btn =>
+        btn.onclick =
+          () =>
+            openInvoice(
+              btn.dataset.invoice
+            )
+    );
+}
+
+
+function openInvoice(id) {
+
+  const invoices =
+    buildInvoices();
+
+  const inv =
+    invoices.find(
+      x =>
+        String(x.invoice_id) ===
+        String(id)
+    );
+
+  if (!inv) return;
+
+  modal(`
+
+    <div id="invoicePrintArea">
+
+      <div class="modal-title">
+
+        <span>
+          SYNERGY ACADEMY
+        </span>
+
+        <h2>
+          رسید / فاکتور فروش
+        </h2>
+
+        <p>
+          شماره:
+          ${esc(inv.invoice_id)}
+        </p>
+
+      </div>
+
+
+      <div class="profile-info">
+
+        <div>
+          <span>نام پرداخت‌کننده</span>
+          <b>${esc(inv.full_name)}</b>
+        </div>
+
+        <div>
+          <span>شماره موبایل</span>
+          <b>${esc(inv.mobile || "—")}</b>
+        </div>
+
+        <div>
+          <span>دوره</span>
+          <b>${esc(inv.course_name)}</b>
+        </div>
+
+        <div>
+          <span>کد دوره</span>
+          <b>${esc(inv.course_code || "—")}</b>
+        </div>
+
+        <div>
+          <span>تاریخ پرداخت</span>
+          <b>${dateFa(inv.payment_date)}</b>
+        </div>
+
+        <div>
+          <span>روش پرداخت</span>
+          <b>${esc(inv.payment_method)}</b>
+        </div>
+
+        <div>
+          <span>شماره پیگیری</span>
+          <b>${esc(inv.reference_no || "—")}</b>
+        </div>
+
+        <div>
+          <span>مبلغ پرداختی</span>
+          <b>${money(inv.amount)}</b>
+        </div>
+
+      </div>
+
+
+      <section
+        class="panel"
+        style="margin-top:16px"
+      >
+
+        <div class="panel-head">
+
+          <div>
+            <h3>شرح فروش</h3>
+            <p>
+              ثبت‌نام / شرکت در دوره آموزشی آکادمی سینرژی
+            </p>
+          </div>
+
+        </div>
+
+        <div class="finance-strip">
+
+          <div>
+            <span>مبلغ کل</span>
+            <strong>
+              ${money(inv.amount)}
+            </strong>
+          </div>
+
+          <div>
+            <span>پرداخت‌شده</span>
+            <strong>
+              ${money(inv.amount)}
+            </strong>
+          </div>
+
+          <div>
+            <span>مانده</span>
+            <strong>
+              ${money(0)}
+            </strong>
+          </div>
+
+        </div>
+
+      </section>
+
+    </div>
+
+
+    <div
+      class="profile-actions"
+      style="margin-top:16px"
+    >
+
+      <button
+        id="printInvoiceBtn"
+        class="primary"
+      >
+        چاپ / ذخیره PDF
+      </button>
+
+    </div>
+  `);
+
+
+  $("#printInvoiceBtn").onclick =
+    () => printInvoice(inv);
+}
+
+
+function printInvoice(inv) {
+
+  const body = `
+    <!doctype html>
+    <html lang="fa" dir="rtl">
+
+    <head>
+
+      <meta charset="utf-8">
+
+      <title>
+        ${esc(inv.invoice_id)}
+      </title>
+
+      <style>
+
+        * {
+          box-sizing: border-box;
+        }
+
+        body {
+          margin: 0;
+          padding: 40px;
+          font-family:
+            Tahoma,
+            Arial,
+            sans-serif;
+          color: #151515;
+          background: #fff;
+        }
+
+        .invoice {
+          max-width: 760px;
+          margin: auto;
+          border: 1px solid #ddd;
+          border-radius: 18px;
+          padding: 34px;
+        }
+
+        .brand {
+          font-size: 13px;
+          letter-spacing: 2px;
+          color: #666;
+        }
+
+        h1 {
+          margin: 8px 0 4px;
+          font-size: 28px;
+        }
+
+        .number {
+          color: #777;
+          margin-bottom: 28px;
+        }
+
+        .grid {
+          display: grid;
+          grid-template-columns:
+            repeat(2, 1fr);
+          gap: 12px;
+        }
+
+        .box {
+          border: 1px solid #e5e5e5;
+          border-radius: 12px;
+          padding: 14px;
+        }
+
+        .box span {
+          display: block;
+          color: #777;
+          font-size: 12px;
+          margin-bottom: 6px;
+        }
+
+        .box b {
+          font-size: 15px;
+        }
+
+        .total {
+          margin-top: 24px;
+          border-top: 2px solid #111;
+          padding-top: 18px;
+          display: flex;
+          justify-content:
+            space-between;
+          font-size: 20px;
+        }
+
+        .footer {
+          margin-top: 36px;
+          color: #777;
+          font-size: 12px;
+          line-height: 1.9;
+        }
+
+        @media print {
+
+          body {
+            padding: 0;
+          }
+
+          .invoice {
+            border: 0;
+          }
+        }
+
+      </style>
+
+    </head>
+
+    <body>
+
+      <div class="invoice">
+
+        <div class="brand">
+          SYNERGY ACADEMY
+        </div>
+
+        <h1>
+          رسید / فاکتور فروش
+        </h1>
+
+        <div class="number">
+          شماره:
+          ${esc(inv.invoice_id)}
+        </div>
+
+
+        <div class="grid">
+
+          <div class="box">
+            <span>نام</span>
+            <b>${esc(inv.full_name)}</b>
+          </div>
+
+          <div class="box">
+            <span>موبایل</span>
+            <b>${esc(inv.mobile || "—")}</b>
+          </div>
+
+          <div class="box">
+            <span>دوره</span>
+            <b>${esc(inv.course_name)}</b>
+          </div>
+
+          <div class="box">
+            <span>کد دوره</span>
+            <b>${esc(inv.course_code || "—")}</b>
+          </div>
+
+          <div class="box">
+            <span>تاریخ پرداخت</span>
+            <b>${dateFa(inv.payment_date)}</b>
+          </div>
+
+          <div class="box">
+            <span>روش پرداخت</span>
+            <b>${esc(inv.payment_method)}</b>
+          </div>
+
+          <div class="box">
+            <span>شماره پیگیری</span>
+            <b>${esc(inv.reference_no || "—")}</b>
+          </div>
+
+        </div>
+
+
+        <div class="total">
+
+          <span>مبلغ پرداختی</span>
+
+          <b>
+            ${money(inv.amount)}
+          </b>
+
+        </div>
+
+
+        <div class="footer">
+
+          این سند بر اساس پرداخت ثبت‌شده
+          در سامانه مدیریت آکادمی سینرژی
+          ایجاد شده است.
+
+        </div>
+
+      </div>
+
+      <script>
+        window.onload = () => {
+          window.print();
+        };
+      <\/script>
+
+    </body>
+
+    </html>
+  `;
+
+
+  const win =
+    window.open(
+      "",
+      "_blank"
+    );
+
+  if (!win) {
+
+    toast(
+      "مرورگر اجازه باز شدن صفحه چاپ را نداد.",
+      true
+    );
+
+    return;
+  }
+
+
+  win.document.open();
+
+  win.document.write(body);
+
+  win.document.close();
 }
 
 
