@@ -2800,163 +2800,117 @@ function printInvoice(inv) {
 
 
 /* =========================================================
-   REPORTS
+   EXECUTIVE / BOARD REPORT
 ========================================================= */
 
 function renderReports() {
 
-  title(
-    "گزارش مدیریت",
-    "نمای مدیریتی عملکرد آکادمی"
-  );
+  title("گزارش مدیریتی","نمای اجرایی برای مدیریت و اعضای هیئت‌مدیره");
 
-  const d =
-    state.dashboard || {};
+  const payments = approvedPayments();
+  const revenue = sumAmount(payments);
+  const expense = sumAmount(state.expenses);
+  const profit = revenue - expense;
+  const margin = revenue ? Math.round((profit / revenue) * 100) : 0;
 
+  const totalLeads = state.leads.length;
+  const registered = state.leads.filter(
+    l => l.status === "registered" || l.status === "paid"
+  ).length;
+  const conversion = totalLeads ? Math.round((registered / totalLeads) * 100) : 0;
+
+  const rows = financeCourseRows();
+  const bestCourse = rows.length ? rows.slice().sort((a,b)=>b.profit-a.profit)[0] : null;
+  const mostSold = rows.length ? rows.slice().sort((a,b)=>b.registered-a.registered)[0] : null;
+
+  const sourceMap = {};
+  state.leads.forEach(l => {
+    const s = l.source || l.lead_source || "نامشخص";
+    sourceMap[s] = (sourceMap[s] || 0) + 1;
+  });
+  const sources = Object.entries(sourceMap).sort((a,b)=>b[1]-a[1]);
+  const maxSource = Math.max(1,...sources.map(x=>x[1]));
+
+  const pipeline = Object.keys(statusMap).map(status => ({
+    status,
+    label: statusMap[status],
+    count: state.leads.filter(l=>l.status===status).length
+  }));
+  const maxPipeline = Math.max(1,...pipeline.map(x=>x.count));
 
   $("#content").innerHTML = `
-
-    <section class="board-hero">
-
-      <span>
-        BOARD VIEW
-      </span>
-
-      <h1>
-        ${money(d.profit)}
-      </h1>
-
-      <p>
-        سود خالص ثبت‌شده آکادمی
-      </p>
-
+    <section class="hero">
+      <div>
+        <span class="eyebrow">BOARD EXECUTIVE SUMMARY</span>
+        <h1>وضعیت کسب‌وکار آکادمی سینرژی</h1>
+        <p>نمای یکپارچه فروش، ثبت‌نام، درآمد و سودآوری</p>
+      </div>
+      <button id="printBoardReport" class="hero-add">چاپ گزارش</button>
     </section>
 
-
-    <div class="report-grid">
-
-      <article>
-        <span>متقاضی</span>
-        <strong>
-          ${
-            faNum(
-              d.total_leads ??
-              state.leads.length
-            )
-          }
-        </strong>
-      </article>
-
-      <article>
-        <span>ثبت‌نام قطعی</span>
-        <strong>
-          ${
-            faNum(
-              d.registered_students
-            )
-          }
-        </strong>
-      </article>
-
-      <article>
-        <span>نرخ تبدیل</span>
-        <strong>
-          ${
-            faNum(
-              d.conversion_rate
-            )
-          }٪
-        </strong>
-      </article>
-
-      <article>
-        <span>دوره فعال</span>
-        <strong>
-          ${
-            faNum(
-              d.active_courses
-            )
-          }
-        </strong>
-      </article>
-
+    <div class="kpi-grid">
+      <div class="kpi"><span>کل متقاضیان</span><strong>${faNum(totalLeads)}</strong><small>Lead Database</small></div>
+      <div class="kpi success"><span>ثبت‌نام / پرداخت</span><strong>${faNum(registered)}</strong><small>Conversion ${faNum(conversion)}٪</small></div>
+      <div class="kpi success"><span>درآمد</span><strong>${money(revenue)}</strong><small>وصول‌شده</small></div>
+      <div class="kpi ${profit>=0?"success":"danger"}"><span>سود خالص</span><strong>${money(profit)}</strong><small>Margin ${faNum(margin)}٪</small></div>
     </div>
 
-
-    <section
-      class="panel"
-      style="margin-top:14px"
-    >
-
-      <div class="panel-head">
-
-        <div>
-          <h3>قیف فروش</h3>
-          <p>
-            تعداد مشتری در هر مرحله
-          </p>
+    <div class="two-col" style="margin-top:16px">
+      <section class="panel">
+        <div class="panel-head"><div><h3>قیف فروش</h3><p>توزیع متقاضیان در مراحل فروش</p></div></div>
+        <div style="display:grid;gap:12px">
+          ${pipeline.map(x=>`
+            <div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>${esc(x.label)}</span><b>${faNum(x.count)}</b></div>
+              <div style="height:9px;background:rgba(255,255,255,.08);border-radius:999px;overflow:hidden">
+                <i style="display:block;height:100%;width:${Math.max(2,Math.round(x.count/maxPipeline*100))}%;background:currentColor;border-radius:inherit"></i>
+              </div>
+            </div>`).join("")}
         </div>
+      </section>
 
-      </div>
+      <section class="panel">
+        <div class="panel-head"><div><h3>منابع جذب مشتری</h3><p>کانال‌های ایجاد متقاضی</p></div></div>
+        ${sources.length ? `<div style="display:grid;gap:12px">${sources.slice(0,8).map(([s,n])=>`
+          <div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>${esc(s)}</span><b>${faNum(n)}</b></div>
+            <div style="height:9px;background:rgba(255,255,255,.08);border-radius:999px;overflow:hidden">
+              <i style="display:block;height:100%;width:${Math.max(3,Math.round(n/maxSource*100))}%;background:currentColor;border-radius:inherit"></i>
+            </div>
+          </div>`).join("")}</div>` :
+          `<div class="empty"><b>منبع جذب ثبت نشده</b><span>با ثبت Source تحلیل کانال‌ها فعال می‌شود.</span></div>`}
+      </section>
+    </div>
 
+    <div class="kpi-grid" style="margin-top:16px">
+      <div class="kpi"><span>دوره‌های فعال</span><strong>${faNum(state.courses.filter(c=>c.status==="active").length)}</strong><small>از ${faNum(state.courses.length)} دوره</small></div>
+      <div class="kpi success"><span>پرفروش‌ترین دوره</span><strong style="font-size:18px">${mostSold?esc(mostSold.course.course_name):"—"}</strong><small>${mostSold?faNum(mostSold.registered)+" دانشجو":"داده کافی نیست"}</small></div>
+      <div class="kpi success"><span>سودآورترین دوره</span><strong style="font-size:18px">${bestCourse?esc(bestCourse.course.course_name):"—"}</strong><small>${bestCourse?money(bestCourse.profit):"داده کافی نیست"}</small></div>
+      <div class="kpi danger"><span>کل هزینه</span><strong>${money(expense)}</strong><small>${faNum(state.expenses.length)} رکورد هزینه</small></div>
+    </div>
 
-      <div class="funnel">
-
-        ${
-          Object
-            .keys(statusMap)
-            .map(
-              status => {
-
-                const count =
-                  state.leads.filter(
-                    x =>
-                      x.status ===
-                      status
-                  ).length;
-
-                const width =
-                  state.leads.length
-                    ? Math.max(
-                        3,
-                        count /
-                        state.leads.length *
-                        100
-                      )
-                    : 3;
-
-                return `
-                  <div>
-
-                    <span>
-                      ${
-                        statusMap[
-                          status
-                        ]
-                      }
-                    </span>
-
-                    <b>
-                      ${faNum(count)}
-                    </b>
-
-                    <i
-                      style="
-                        width:${width}%
-                      "
-                    ></i>
-
-                  </div>
-                `;
-              }
-            )
-            .join("")
-        }
-
-      </div>
-
+    <section class="panel" style="margin-top:16px">
+      <div class="panel-head"><div><h3>عملکرد دوره‌ها</h3><p>ثبت‌نام، ظرفیت، درآمد، هزینه و سود</p></div><span class="count">${faNum(rows.length)}</span></div>
+      ${rows.length ? `<div style="overflow:auto"><table style="width:100%;border-collapse:collapse;min-width:760px">
+        <thead><tr>
+          <th style="text-align:right;padding:12px">دوره</th><th style="text-align:right;padding:12px">ثبت‌نام</th>
+          <th style="text-align:right;padding:12px">ظرفیت</th><th style="text-align:right;padding:12px">درآمد</th>
+          <th style="text-align:right;padding:12px">هزینه</th><th style="text-align:right;padding:12px">سود</th>
+          <th style="text-align:right;padding:12px">Margin</th>
+        </tr></thead>
+        <tbody>${rows.map(x=>`<tr style="border-top:1px solid rgba(255,255,255,.08)">
+          <td style="padding:12px"><b>${esc(x.course.course_name)}</b></td>
+          <td style="padding:12px">${faNum(x.registered)}</td><td style="padding:12px">${faNum(x.capacity)}</td>
+          <td style="padding:12px">${money(x.revenue)}</td><td style="padding:12px">${money(x.cost)}</td>
+          <td style="padding:12px"><b>${money(x.profit)}</b></td>
+          <td style="padding:12px"><span class="badge ${x.margin>0?"green":x.margin<0?"red":"gray"}">${faNum(x.margin)}٪</span></td>
+        </tr>`).join("")}</tbody>
+      </table></div>` : `<div class="empty"><b>داده دوره‌ای وجود ندارد</b><span>با ثبت دوره‌ها گزارش تکمیل می‌شود.</span></div>`}
     </section>
   `;
+
+  const btn=$("#printBoardReport");
+  if(btn) btn.onclick=()=>window.print();
 }
 
 
