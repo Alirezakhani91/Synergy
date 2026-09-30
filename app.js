@@ -929,7 +929,41 @@ function renderLeads() {
     Object.keys(statusMap);
 
 
+  const leadStats = {
+    total: state.leads.length,
+    hot: state.leads.filter(x =>
+      ["interested", "payment_info_sent", "awaiting_payment"].includes(x.status)
+    ).length,
+    paid: state.leads.filter(x =>
+      ["paid", "registered"].includes(x.status)
+    ).length,
+    lost: state.leads.filter(x => x.status === "lost").length
+  };
+
   $("#content").innerHTML = `
+
+    <div class="kpi-grid" style="margin-top:0;margin-bottom:14px">
+      <div class="kpi">
+        <span>کل متقاضیان</span>
+        <strong>${faNum(leadStats.total)}</strong>
+        <small>بانک مشتریان</small>
+      </div>
+      <div class="kpi warning">
+        <span>فرصت‌های داغ</span>
+        <strong>${faNum(leadStats.hot)}</strong>
+        <small>نیازمند پیگیری فروش</small>
+      </div>
+      <div class="kpi success">
+        <span>پرداخت / ثبت‌نام</span>
+        <strong>${faNum(leadStats.paid)}</strong>
+        <small>تبدیل‌شده</small>
+      </div>
+      <div class="kpi danger">
+        <span>از دست رفته</span>
+        <strong>${faNum(leadStats.lost)}</strong>
+        <small>نیازمند تحلیل علت</small>
+      </div>
+    </div>
 
     <div class="toolbar">
 
@@ -2440,6 +2474,28 @@ function openLead(id) {
     </div>
 
 
+    <div class="panel" style="margin:18px 0 12px;padding:14px">
+      <div class="panel-head" style="margin-bottom:10px">
+        <div>
+          <h3>وضعیت فروش</h3>
+          <p>نمای سریع پرونده این متقاضی</p>
+        </div>
+        <span class="badge ${statusClass[lead.status] || "gray"}">
+          ${statusMap[lead.status] || esc(lead.status)}
+        </span>
+      </div>
+      <div class="profile-info">
+        <div>
+          <span>ارزش فرصت</span>
+          <b>${money(lead.expected_amount)}</b>
+        </div>
+        <div>
+          <span>پیگیری بعدی</span>
+          <b>${dateFa(lead.next_followup)}</b>
+        </div>
+      </div>
+    </div>
+
     <div class="profile-info">
 
       <div>
@@ -2636,7 +2692,8 @@ function followForm(lead) {
       </h2>
 
       <p>
-        نتیجه تماس یا پیام را ثبت کنید.
+        نتیجه تماس یا پیام را ثبت کنید. اگر مشتری از دست رفت، علت را در «نتیجه» ثبت کنید
+        (قیمت، زمان دوره، عدم پاسخ، انصراف یا سایر).
       </p>
 
     </div>
