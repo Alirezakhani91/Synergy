@@ -14,6 +14,7 @@ const state = {
   expenses: [],
   followups: [],
   selectedLead: null,
+  selectedCourse: null,
   loading: false
 };
 
@@ -1111,34 +1112,132 @@ function renderLeads() {
 
 
 /* =========================================================
-   COURSES
+   COURSES / COURSE 360
 ========================================================= */
+
+function courseStudents(courseId) {
+  return state.students.filter(
+    s => String(s.course_id) === String(courseId)
+  );
+}
+
+function courseLeads(courseId) {
+  return state.leads.filter(
+    l => String(l.course_id) === String(courseId)
+  );
+}
+
+function coursePayments(courseId) {
+  return state.payments.filter(
+    p =>
+      String(p.course_id) === String(courseId) &&
+      (!p.status || p.status === "approved")
+  );
+}
+
+function courseExpenses(courseId) {
+  return state.expenses.filter(
+    e => String(e.course_id) === String(courseId)
+  );
+}
+
+function sumAmount(arr) {
+  return arr.reduce(
+    (sum, item) => sum + Number(item.amount || 0),
+    0
+  );
+}
+
+function courseMetrics(course) {
+  const students = courseStudents(course.course_id);
+  const leads = courseLeads(course.course_id);
+  const payments = coursePayments(course.course_id);
+  const expenses = courseExpenses(course.course_id);
+
+  const capacity = Number(course.capacity || 0);
+  const registered = students.length;
+  const remaining = Math.max(0, capacity - registered);
+  const revenue = sumAmount(payments);
+  const cost = sumAmount(expenses);
+  const profit = revenue - cost;
+  const fillRate = capacity
+    ? Math.min(100, Math.round((registered / capacity) * 100))
+    : 0;
+
+  return {
+    students,
+    leads,
+    payments,
+    expenses,
+    capacity,
+    registered,
+    remaining,
+    revenue,
+    cost,
+    profit,
+    fillRate
+  };
+}
 
 function renderCourses() {
 
   title(
     "دوره‌ها",
-    "مدیریت دوره‌های آموزشی"
+    "مدیریت دوره، ظرفیت، دانشجو و عملکرد مالی"
   );
 
+  const active = state.courses.filter(
+    c => c.status === "active"
+  ).length;
+
+  const totalStudents = state.students.length;
+
+  const totalCapacity = state.courses.reduce(
+    (sum, c) => sum + Number(c.capacity || 0),
+    0
+  );
+
+  const remainingCapacity = Math.max(
+    0,
+    totalCapacity - totalStudents
+  );
 
   $("#content").innerHTML = `
+
+    <div class="kpi-grid" style="margin-top:0;margin-bottom:14px">
+
+      <div class="kpi">
+        <span>کل دوره‌ها</span>
+        <strong>${faNum(state.courses.length)}</strong>
+        <small>${faNum(active)} دوره فعال</small>
+      </div>
+
+      <div class="kpi success">
+        <span>دانشجویان ثبت‌شده</span>
+        <strong>${faNum(totalStudents)}</strong>
+        <small>در تمام دوره‌ها</small>
+      </div>
+
+      <div class="kpi warning">
+        <span>ظرفیت کل</span>
+        <strong>${faNum(totalCapacity)}</strong>
+        <small>صندلی تعریف‌شده</small>
+      </div>
+
+      <div class="kpi">
+        <span>ظرفیت باقی‌مانده</span>
+        <strong>${faNum(remainingCapacity)}</strong>
+        <small>فرصت فروش</small>
+      </div>
+
+    </div>
 
     <div class="toolbar">
 
       <div>
-        <h3>
-          دوره‌های آکادمی
-        </h3>
-
-        <p>
-          ${faNum(
-            state.courses.length
-          )}
-          دوره ثبت شده
-        </p>
+        <h3>دوره‌های آکادمی</h3>
+        <p>برای مشاهده پرونده کامل روی هر دوره بزنید.</p>
       </div>
-
 
       <button
         class="primary"
@@ -1149,126 +1248,122 @@ function renderCourses() {
 
     </div>
 
-
     <div class="course-grid">
 
       ${
         state.courses.length
-          ? state.courses
-              .map(
-                c => `
-                  <article class="course-card">
+          ? state.courses.map(c => {
 
-                    <div class="course-top">
+              const m = courseMetrics(c);
 
-                      <span
-                        class="badge ${
-                          c.status ===
-                          "active"
-                            ? "green"
-                            : "gray"
-                        }"
-                      >
-                        ${
-                          c.status ===
-                          "active"
-                            ? "فعال"
-                            : esc(
-                                c.status ||
-                                "پیش‌نویس"
-                              )
-                        }
-                      </span>
+              return `
+                <article
+                  class="course-card course-click"
+                  data-course="${esc(c.course_id)}"
+                  role="button"
+                  tabindex="0"
+                >
 
-                      <small>
-                        ${
-                          esc(
-                            c.course_code ||
-                            ""
-                          )
-                        }
-                      </small>
+                  <div class="course-top">
 
-                    </div>
-
-
-                    <h3>
-                      ${esc(
-                        c.course_name
-                      )}
-                    </h3>
-
-                    <p>
+                    <span
+                      class="badge ${
+                        c.status === "active"
+                          ? "green"
+                          : "gray"
+                      }"
+                    >
                       ${
-                        esc(
-                          c.partner_university ||
-                          "دانشگاه همکار مشخص نشده"
-                        )
+                        c.status === "active"
+                          ? "فعال"
+                          : esc(c.status || "پیش‌نویس")
                       }
-                    </p>
+                    </span>
 
+                    <small>
+                      ${esc(c.course_code || "")}
+                    </small>
 
-                    <div class="course-meta">
+                  </div>
 
-                      <div>
-                        <span>مدرس</span>
-                        <b>
-                          ${
-                            esc(
-                              c.instructor ||
-                              "—"
-                            )
-                          }
-                        </b>
-                      </div>
+                  <h3>${esc(c.course_name)}</h3>
 
-                      <div>
-                        <span>ظرفیت</span>
-                        <b>
-                          ${
-                            faNum(
-                              c.capacity
-                            )
-                          }
-                        </b>
-                      </div>
+                  <p>
+                    ${esc(
+                      c.partner_university ||
+                      "دانشگاه همکار مشخص نشده"
+                    )}
+                  </p>
 
-                      <div>
-                        <span>شروع</span>
-                        <b>
-                          ${
-                            dateFa(
-                              c.start_date
-                            )
-                          }
-                        </b>
-                      </div>
+                  <div
+                    style="
+                      height:8px;
+                      border-radius:999px;
+                      background:rgba(255,255,255,.08);
+                      overflow:hidden;
+                      margin:14px 0 6px
+                    "
+                  >
+                    <i
+                      style="
+                        display:block;
+                        height:100%;
+                        width:${m.fillRate}%;
+                        background:currentColor;
+                        border-radius:inherit
+                      "
+                    ></i>
+                  </div>
 
-                      <div>
-                        <span>قیمت</span>
-                        <b>
-                          ${
-                            money(
-                              c.standard_price
-                            )
-                          }
-                        </b>
-                      </div>
+                  <div
+                    style="
+                      display:flex;
+                      justify-content:space-between;
+                      gap:8px;
+                      font-size:12px;
+                      opacity:.75;
+                      margin-bottom:14px
+                    "
+                  >
+                    <span>${faNum(m.fillRate)}٪ تکمیل ظرفیت</span>
+                    <span>
+                      ${faNum(m.registered)}
+                      /
+                      ${faNum(m.capacity)}
+                    </span>
+                  </div>
 
+                  <div class="course-meta">
+
+                    <div>
+                      <span>مدرس</span>
+                      <b>${esc(c.instructor || "—")}</b>
                     </div>
 
-                  </article>
-                `
-              )
-              .join("")
+                    <div>
+                      <span>دانشجو</span>
+                      <b>${faNum(m.registered)}</b>
+                    </div>
+
+                    <div>
+                      <span>شروع</span>
+                      <b>${dateFa(c.start_date)}</b>
+                    </div>
+
+                    <div>
+                      <span>قیمت</span>
+                      <b>${money(c.standard_price)}</b>
+                    </div>
+
+                  </div>
+
+                </article>
+              `;
+            }).join("")
           : `
             <div class="panel empty">
-              <b>
-                هنوز دوره‌ای تعریف نشده
-              </b>
-              <span>
-                اولین دوره آکادمی را ایجاد کنید.
-              </span>
+              <b>هنوز دوره‌ای تعریف نشده</b>
+              <span>اولین دوره آکادمی را ایجاد کنید.</span>
             </div>
           `
       }
@@ -1277,6 +1372,296 @@ function renderCourses() {
   `;
 
   bindActions();
+  bindCourseClicks();
+}
+
+function bindCourseClicks() {
+
+  $$("[data-course]").forEach(card => {
+
+    const open = () =>
+      openCourse(card.dataset.course);
+
+    card.onclick = open;
+
+    card.onkeydown = e => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        open();
+      }
+    };
+  });
+}
+
+function openCourse(id) {
+
+  const course = state.courses.find(
+    c => String(c.course_id) === String(id)
+  );
+
+  if (!course) return;
+
+  state.selectedCourse = course;
+
+  const m = courseMetrics(course);
+
+  const margin =
+    m.revenue
+      ? Math.round((m.profit / m.revenue) * 100)
+      : 0;
+
+  modal(`
+
+    <div class="modal-title">
+
+      <span>COURSE 360</span>
+
+      <h2>${esc(course.course_name)}</h2>
+
+      <p>
+        ${esc(course.partner_university || "آکادمی سینرژی")}
+        ${
+          course.course_code
+            ? " · " + esc(course.course_code)
+            : ""
+        }
+      </p>
+
+    </div>
+
+    <div class="profile-info">
+
+      <div>
+        <span>مدرس</span>
+        <b>${esc(course.instructor || "—")}</b>
+      </div>
+
+      <div>
+        <span>تاریخ شروع</span>
+        <b>${dateFa(course.start_date)}</b>
+      </div>
+
+      <div>
+        <span>محل برگزاری</span>
+        <b>${esc(course.location || "—")}</b>
+      </div>
+
+      <div>
+        <span>قیمت استاندارد</span>
+        <b>${money(course.standard_price)}</b>
+      </div>
+
+    </div>
+
+    <div class="kpi-grid" style="margin:16px 0">
+
+      <div class="kpi success">
+        <span>ثبت‌نام</span>
+        <strong>${faNum(m.registered)}</strong>
+        <small>از ${faNum(m.capacity)} نفر</small>
+      </div>
+
+      <div class="kpi warning">
+        <span>ظرفیت باقی‌مانده</span>
+        <strong>${faNum(m.remaining)}</strong>
+        <small>${faNum(m.fillRate)}٪ تکمیل</small>
+      </div>
+
+      <div class="kpi">
+        <span>درآمد وصول‌شده</span>
+        <strong>${money(m.revenue)}</strong>
+        <small>${faNum(m.payments.length)} پرداخت</small>
+      </div>
+
+      <div class="kpi ${m.profit >= 0 ? "success" : "danger"}">
+        <span>سود دوره</span>
+        <strong>${money(m.profit)}</strong>
+        <small>Margin ${faNum(margin)}٪</small>
+      </div>
+
+    </div>
+
+    <section class="panel" style="margin-bottom:14px">
+
+      <div class="panel-head">
+
+        <div>
+          <h3>دانشجویان دوره</h3>
+          <p>
+            ${faNum(m.registered)}
+            دانشجو در این دوره ثبت شده‌اند.
+          </p>
+        </div>
+
+        <span class="count">${faNum(m.registered)}</span>
+
+      </div>
+
+      ${
+        m.students.length
+          ? `
+            <div class="lead-list">
+              ${m.students.map(s => {
+
+                const lead = state.leads.find(
+                  l =>
+                    String(l.lead_id) ===
+                    String(s.lead_id)
+                );
+
+                const name =
+                  s.full_name ||
+                  lead?.full_name ||
+                  "دانشجو";
+
+                const mobile =
+                  s.mobile ||
+                  lead?.mobile ||
+                  "";
+
+                const paid = state.payments
+                  .filter(p =>
+                    String(p.course_id) === String(course.course_id) &&
+                    (
+                      String(p.student_id || "") ===
+                      String(s.student_id || "") ||
+                      String(p.lead_id || "") ===
+                      String(s.lead_id || "")
+                    ) &&
+                    (!p.status || p.status === "approved")
+                  )
+                  .reduce(
+                    (sum, p) =>
+                      sum + Number(p.amount || 0),
+                    0
+                  );
+
+                return `
+                  <div class="lead-row" style="cursor:default">
+
+                    <div class="avatar">
+                      ${esc(String(name).trim()[0] || "?")}
+                    </div>
+
+                    <div class="lead-main">
+                      <b>${esc(name)}</b>
+                      <span>${esc(mobile)}</span>
+                    </div>
+
+                    <div class="lead-end">
+                      <em class="badge green">
+                        ${paid ? "پرداخت " + money(paid) : "ثبت‌نام‌شده"}
+                      </em>
+                    </div>
+
+                  </div>
+                `;
+              }).join("")}
+            </div>
+          `
+          : `
+            <div class="empty">
+              <b>هنوز دانشجویی ثبت نشده</b>
+              <span>
+                دانشجو پس از تبدیل متقاضی به این لیست اضافه می‌شود.
+              </span>
+            </div>
+          `
+      }
+
+    </section>
+
+    <section class="panel" style="margin-bottom:14px">
+
+      <div class="panel-head">
+
+        <div>
+          <h3>فرصت‌های فروش این دوره</h3>
+          <p>متقاضیانی که هنوز به دانشجو تبدیل نشده‌اند.</p>
+        </div>
+
+        <span class="count">
+          ${faNum(
+            m.leads.filter(
+              l => l.status !== "registered"
+            ).length
+          )}
+        </span>
+
+      </div>
+
+      ${
+        leadList(
+          m.leads
+            .filter(l => l.status !== "registered")
+            .slice(0, 12),
+          false
+        )
+      }
+
+    </section>
+
+    <section class="panel">
+
+      <div class="panel-head">
+        <div>
+          <h3>عملکرد مالی دوره</h3>
+          <p>بر اساس پرداخت‌ها و هزینه‌های ثبت‌شده همین دوره</p>
+        </div>
+      </div>
+
+      <div class="finance-strip">
+
+        <div>
+          <span>درآمد</span>
+          <strong>${money(m.revenue)}</strong>
+        </div>
+
+        <div>
+          <span>هزینه مستقیم</span>
+          <strong>${money(m.cost)}</strong>
+        </div>
+
+        <div>
+          <span>سود</span>
+          <strong>${money(m.profit)}</strong>
+        </div>
+
+      </div>
+
+    </section>
+
+    <div class="profile-actions" style="margin-top:14px">
+
+      <button
+        id="courseExpenseBtn"
+        class="secondary glass-button"
+      >
+        ثبت هزینه دوره
+      </button>
+
+      <button
+        id="coursePaymentBtn"
+        class="primary"
+      >
+        ثبت پرداخت
+      </button>
+
+    </div>
+  `);
+
+  bindLeadClicks();
+
+  const expenseBtn = $("#courseExpenseBtn");
+  const paymentBtn = $("#coursePaymentBtn");
+
+  if (expenseBtn)
+    expenseBtn.onclick =
+      () => newExpense(course);
+
+  if (paymentBtn)
+    paymentBtn.onclick =
+      () => newPayment(null, course);
 }
 
 
@@ -1657,6 +2042,7 @@ function closeModal() {
     .add("hidden");
 
   state.selectedLead = null;
+  state.selectedCourse = null;
 }
 
 
@@ -1993,7 +2379,7 @@ function newCourse() {
    EXPENSE
 ========================================================= */
 
-function newExpense() {
+function newExpense(selectedCourse = null) {
 
   modal(`
 
@@ -2028,6 +2414,13 @@ function newExpense() {
                 .map(
                   c => `
                     <option
+                      ${
+                        selectedCourse &&
+                        String(selectedCourse.course_id) ===
+                        String(c.course_id)
+                          ? "selected"
+                          : ""
+                      }
                       value="${esc(
                         c.course_id
                       )}"
@@ -2130,7 +2523,8 @@ function newExpense() {
 ========================================================= */
 
 function newPayment(
-  lead = null
+  lead = null,
+  selectedCourse = null
 ) {
 
   modal(`
@@ -2179,8 +2573,12 @@ function newPayment(
                   c => `
                     <option
                       ${
-                        lead?.course_id ===
-                        c.course_id
+                        (
+                          String(lead?.course_id || "") ===
+                          String(c.course_id) ||
+                          String(selectedCourse?.course_id || "") ===
+                          String(c.course_id)
+                        )
                           ? "selected"
                           : ""
                       }
