@@ -1669,92 +1669,541 @@ function openCourse(id) {
 
 
 /* =========================================================
-   FINANCE
+   FINANCE & PROFITABILITY
 ========================================================= */
+
+function approvedPayments() {
+  return state.payments.filter(
+    p => !p.status || p.status === "approved"
+  );
+}
+
+function financeCourseRows() {
+
+  return state.courses
+    .map(course => {
+
+      const m = courseMetrics(course);
+
+      const margin =
+        m.revenue
+          ? Math.round(
+              (m.profit / m.revenue) * 100
+            )
+          : 0;
+
+      return {
+        course,
+        ...m,
+        margin
+      };
+    })
+    .sort(
+      (a, b) =>
+        b.profit - a.profit
+    );
+}
+
 
 function renderFinance() {
 
   title(
-    "مالی",
-    "درآمد، هزینه و سودآوری"
+    "مالی و سودآوری",
+    "کنترل درآمد، هزینه، سود و عملکرد اقتصادی دوره‌ها"
   );
 
-  const d =
-    state.dashboard || {};
+  const payments =
+    approvedPayments();
+
+  const revenue =
+    sumAmount(payments);
+
+  const expense =
+    sumAmount(state.expenses);
+
+  const profit =
+    revenue - expense;
+
+  const margin =
+    revenue
+      ? Math.round(
+          (profit / revenue) * 100
+        )
+      : 0;
+
+  const rows =
+    financeCourseRows();
+
+  const profitable =
+    rows.filter(
+      x => x.profit > 0
+    ).length;
+
+  const lossMaking =
+    rows.filter(
+      x => x.profit < 0
+    ).length;
+
+  const avgTicket =
+    payments.length
+      ? Math.round(
+          revenue / payments.length
+        )
+      : 0;
+
+  const maxProfit =
+    Math.max(
+      1,
+      ...rows.map(
+        x =>
+          Math.max(
+            0,
+            Number(x.profit || 0)
+          )
+      )
+    );
 
 
   $("#content").innerHTML = `
 
-    <div class="toolbar">
+    <section class="hero">
 
       <div>
-        <h3>
-          وضعیت مالی آکادمی
-        </h3>
+
+        <span class="eyebrow">
+          FINANCIAL CONTROL CENTER
+        </span>
+
+        <h1>
+          تصویر مالی آکادمی
+        </h1>
 
         <p>
-          اطلاعات ثبت‌شده در سیستم
+          سود خالص فعلی
+          <b>${money(profit)}</b>
+          با حاشیه سود
+          <b>${faNum(margin)}٪</b>
         </p>
-      </div>
-
-      <div>
-
-        <button
-          class="secondary glass-button"
-          data-action="newExpense"
-        >
-          ثبت هزینه
-        </button>
-
-        <button
-          class="primary"
-          data-action="newPayment"
-        >
-          ثبت پرداخت
-        </button>
 
       </div>
 
-    </div>
+      <button
+        class="hero-add"
+        data-action="newExpense"
+      >
+        ＋ ثبت هزینه
+      </button>
+
+    </section>
 
 
-    <div class="finance-grid">
+    <div class="kpi-grid">
 
-      <article class="finance-card">
-        <span>درآمد</span>
-        <strong>
-          ${money(d.revenue)}
-        </strong>
-      </article>
+      <div class="kpi success">
+        <span>درآمد وصول‌شده</span>
+        <strong>${money(revenue)}</strong>
+        <small>
+          ${faNum(payments.length)}
+          پرداخت تأییدشده
+        </small>
+      </div>
 
-      <article class="finance-card">
-        <span>هزینه</span>
-        <strong>
-          ${money(d.expenses)}
-        </strong>
-      </article>
+      <div class="kpi danger">
+        <span>کل هزینه‌ها</span>
+        <strong>${money(expense)}</strong>
+        <small>
+          ${faNum(state.expenses.length)}
+          رکورد هزینه
+        </small>
+      </div>
 
-      <article class="finance-card">
+      <div class="kpi ${profit >= 0 ? "success" : "danger"}">
         <span>سود خالص</span>
-        <strong>
-          ${money(d.profit)}
-        </strong>
-      </article>
+        <strong>${money(profit)}</strong>
+        <small>
+          درآمد منهای هزینه
+        </small>
+      </div>
 
-      <article class="finance-card">
-        <span>پرداخت‌ها</span>
-        <strong>
-          ${faNum(
-            state.payments.length
-          )}
-        </strong>
-      </article>
+      <div class="kpi warning">
+        <span>حاشیه سود</span>
+        <strong>${faNum(margin)}٪</strong>
+        <small>
+          Profit Margin
+        </small>
+      </div>
 
     </div>
 
+
+    <div class="kpi-grid" style="margin-top:14px">
+
+      <div class="kpi">
+        <span>میانگین هر پرداخت</span>
+        <strong>${money(avgTicket)}</strong>
+        <small>Average Ticket</small>
+      </div>
+
+      <div class="kpi success">
+        <span>دوره‌های سودده</span>
+        <strong>${faNum(profitable)}</strong>
+        <small>سود مثبت</small>
+      </div>
+
+      <div class="kpi danger">
+        <span>دوره‌های زیان‌ده</span>
+        <strong>${faNum(lossMaking)}</strong>
+        <small>نیازمند بررسی</small>
+      </div>
+
+      <div class="kpi">
+        <span>کل دانشجویان</span>
+        <strong>${faNum(state.students.length)}</strong>
+        <small>ثبت‌نام قطعی</small>
+      </div>
+
+    </div>
+
+
+    <section class="panel" style="margin-top:16px">
+
+      <div class="panel-head">
+
+        <div>
+          <h3>سودآوری به تفکیک دوره</h3>
+          <p>
+            مقایسه فروش، هزینه و سود واقعی هر دوره
+          </p>
+        </div>
+
+        <span class="count">
+          ${faNum(rows.length)}
+        </span>
+
+      </div>
+
+      ${
+        rows.length
+          ? `
+            <div style="display:grid;gap:12px">
+
+              ${
+                rows.map(x => {
+
+                  const width =
+                    Math.max(
+                      3,
+                      Math.round(
+                        Math.max(
+                          0,
+                          x.profit
+                        ) /
+                        maxProfit *
+                        100
+                      )
+                    );
+
+                  return `
+                    <button
+                      class="lead-row"
+                      data-finance-course="${esc(
+                        x.course.course_id
+                      )}"
+                      style="
+                        width:100%;
+                        text-align:right;
+                        position:relative;
+                        overflow:hidden
+                      "
+                    >
+
+                      <div
+                        style="
+                          position:absolute;
+                          inset:auto 0 0 auto;
+                          height:3px;
+                          width:${width}%;
+                          background:currentColor;
+                          opacity:.55
+                        "
+                      ></div>
+
+                      <div class="avatar">
+                        ${x.profit >= 0 ? "↗" : "↘"}
+                      </div>
+
+                      <div class="lead-main">
+
+                        <b>
+                          ${esc(
+                            x.course.course_name
+                          )}
+                        </b>
+
+                        <span>
+                          درآمد:
+                          ${money(x.revenue)}
+                          ·
+                          هزینه:
+                          ${money(x.cost)}
+                        </span>
+
+                      </div>
+
+                      <div class="lead-end">
+
+                        <b>
+                          ${money(x.profit)}
+                        </b>
+
+                        <em
+                          class="badge ${
+                            x.profit > 0
+                              ? "green"
+                              : x.profit < 0
+                                ? "red"
+                                : "gray"
+                          }"
+                        >
+                          Margin
+                          ${faNum(x.margin)}٪
+                        </em>
+
+                      </div>
+
+                    </button>
+                  `;
+                }).join("")
+              }
+
+            </div>
+          `
+          : `
+            <div class="empty">
+              <b>داده مالی دوره‌ای نداریم</b>
+              <span>
+                پس از ثبت دوره، پرداخت و هزینه،
+                تحلیل سودآوری اینجا نمایش داده می‌شود.
+              </span>
+            </div>
+          `
+      }
+
+    </section>
+
+
+    <div class="two-col" style="margin-top:16px">
+
+      <section class="panel">
+
+        <div class="panel-head">
+
+          <div>
+            <h3>آخرین پرداخت‌ها</h3>
+            <p>
+              جریان ورودی وجه
+            </p>
+          </div>
+
+          <span class="count">
+            ${faNum(payments.length)}
+          </span>
+
+        </div>
+
+        ${
+          payments.length
+            ? `
+              <div class="lead-list">
+
+                ${
+                  payments
+                    .slice()
+                    .reverse()
+                    .slice(0, 8)
+                    .map(p => {
+
+                      const lead =
+                        state.leads.find(
+                          l =>
+                            String(l.lead_id) ===
+                            String(p.lead_id)
+                        );
+
+                      return `
+                        <div
+                          class="lead-row"
+                          style="cursor:default"
+                        >
+
+                          <div class="avatar">
+                            +
+                          </div>
+
+                          <div class="lead-main">
+
+                            <b>
+                              ${esc(
+                                lead?.full_name ||
+                                "پرداخت دانشجو"
+                              )}
+                            </b>
+
+                            <span>
+                              ${dateFa(
+                                p.payment_date ||
+                                p.created_at
+                              )}
+                            </span>
+
+                          </div>
+
+                          <div class="lead-end">
+
+                            <b>
+                              ${money(p.amount)}
+                            </b>
+
+                            <small>
+                              ${esc(
+                                p.payment_method ||
+                                ""
+                              )}
+                            </small>
+
+                          </div>
+
+                        </div>
+                      `;
+                    })
+                    .join("")
+                }
+
+              </div>
+            `
+            : `
+              <div class="empty">
+                <b>پرداختی ثبت نشده</b>
+                <span>
+                  پرداخت‌های تأییدشده اینجا دیده می‌شوند.
+                </span>
+              </div>
+            `
+        }
+
+      </section>
+
+
+      <section class="panel">
+
+        <div class="panel-head">
+
+          <div>
+            <h3>آخرین هزینه‌ها</h3>
+            <p>
+              جریان خروجی وجه
+            </p>
+          </div>
+
+          <button
+            class="secondary glass-button"
+            data-action="newExpense"
+          >
+            ＋ هزینه
+          </button>
+
+        </div>
+
+        ${
+          state.expenses.length
+            ? `
+              <div class="lead-list">
+
+                ${
+                  state.expenses
+                    .slice()
+                    .reverse()
+                    .slice(0, 8)
+                    .map(e => `
+                      <div
+                        class="lead-row"
+                        style="cursor:default"
+                      >
+
+                        <div class="avatar">
+                          −
+                        </div>
+
+                        <div class="lead-main">
+
+                          <b>
+                            ${esc(
+                              e.description ||
+                              e.category ||
+                              "هزینه"
+                            )}
+                          </b>
+
+                          <span>
+                            ${esc(
+                              courseName(
+                                e.course_id
+                              )
+                            )}
+                          </span>
+
+                        </div>
+
+                        <div class="lead-end">
+
+                          <b>
+                            ${money(e.amount)}
+                          </b>
+
+                          <small>
+                            ${dateFa(
+                              e.expense_date ||
+                              e.created_at
+                            )}
+                          </small>
+
+                        </div>
+
+                      </div>
+                    `)
+                    .join("")
+                }
+
+              </div>
+            `
+            : `
+              <div class="empty">
+                <b>هزینه‌ای ثبت نشده</b>
+                <span>
+                  هزینه‌های مدرس، سالن، تجهیزات،
+                  تبلیغات و سایر موارد را ثبت کنید.
+                </span>
+              </div>
+            `
+        }
+
+      </section>
+
+    </div>
   `;
 
+
   bindActions();
+
+  $$("[data-finance-course]")
+    .forEach(
+      btn =>
+        btn.onclick =
+          () =>
+            openCourse(
+              btn.dataset.financeCourse
+            )
+    );
 }
 
 
