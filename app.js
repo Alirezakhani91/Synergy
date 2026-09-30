@@ -301,58 +301,27 @@ async function safeLoad(
 
 
 async function loadAll(
-  showLoading = true
+  showLoading = false
 ) {
 
-  if (state.loading)
-    return;
+  /*
+    The CRM shell must always open immediately.
+    Google Sheets data loads in the background.
+  */
 
-  if (showLoading)
-    loading(true);
+  loading(false);
+  setConnected(false);
+
+  // Show the interface immediately with current state.
+  render();
 
   let anySuccess = false;
 
   try {
 
-    /*
-      Dashboard first.
-      We do NOT wait for 7 requests before
-      rendering the application.
-    */
-
-    const dashboardResult =
-      await safeLoad(
-        "dashboard",
-        {}
-      );
-
-    if (dashboardResult.ok) {
-
-      state.dashboard =
-        dashboardResult.data || {};
-
-      anySuccess = true;
-
-      setConnected(true);
-
-      render();
-
-      /*
-        Important:
-        user sees the interface now.
-      */
-
-      loading(false);
-    }
-
-
-    /*
-      Load remaining datasets independently.
-      One broken endpoint will not freeze CRM.
-    */
-
     const results =
       await Promise.allSettled([
+        safeLoad("dashboard", {}),
         safeLoad("leads", []),
         safeLoad("courses", []),
         safeLoad("students", []),
@@ -375,6 +344,7 @@ async function loadAll(
 
 
     const [
+      dashboard,
       leads,
       courses,
       students,
@@ -383,6 +353,12 @@ async function loadAll(
       followups
     ] = values;
 
+
+    if (dashboard.ok) {
+      state.dashboard =
+        dashboard.data || {};
+      anySuccess = true;
+    }
 
     if (leads.ok) {
       state.leads =
@@ -423,13 +399,15 @@ async function loadAll(
 
     setConnected(anySuccess);
 
+    // Refresh visible data without blocking the screen.
     render();
 
 
     if (!anySuccess) {
 
-      throw new Error(
-        "هیچ اطلاعاتی از دیتابیس دریافت نشد."
+      toast(
+        "ارتباط با دیتابیس برقرار نشد",
+        true
       );
     }
 
@@ -440,11 +418,12 @@ async function loadAll(
     setConnected(false);
 
     toast(
-      "ارتباط با دیتابیس برقرار نشد",
+      "خطا در دریافت اطلاعات",
       true
     );
 
-    renderError();
+    // Keep the CRM usable even if Google is unavailable.
+    render();
 
   } finally {
 
@@ -1560,7 +1539,7 @@ function renderError() {
 
   if (retry)
     retry.onclick =
-      () => loadAll(true);
+      () => loadAll(false);
 }
 
 
@@ -2909,7 +2888,14 @@ $("#modal").onclick =
 
 
 $("#refreshBtn").onclick =
-  () => loadAll(true);
+  () => {
+
+    toast(
+      "در حال بروزرسانی اطلاعات..."
+    );
+
+    loadAll(false);
+  };
 
 
 /*
@@ -2954,41 +2940,12 @@ document.addEventListener(
    START APPLICATION
 ========================================================= */
 
-initNav();
-
 /*
-  Safety valve:
-  even if Google has an issue,
-  loading overlay can never remain forever.
+  Render first, fetch second.
+  No full-screen loading overlay on application startup.
 */
 
-const loadingSafety =
-  setTimeout(
-    () => {
-
-      if (state.loading) {
-
-        loading(false);
-
-        setConnected(false);
-
-        toast(
-          "دریافت اطلاعات طولانی شد؛ دوباره تلاش کنید.",
-          true
-        );
-
-        render();
-      }
-
-    },
-    16000
-  );
-
-
-loadAll(true)
-  .finally(
-    () =>
-      clearTimeout(
-        loadingSafety
-      )
-  );
+loading(false);
+setConnected(false);
+render();
+loadAll(false);
