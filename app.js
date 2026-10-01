@@ -82,6 +82,48 @@ function money(v) {
   );
 }
 
+
+function rawNumber(v) {
+  return String(v ?? "")
+    .replace(/[,\u066C\u060C\s]/g, "")
+    .replace(/[۰-۹]/g, d => "۰۱۲۳۴۵۶۷۸۹".indexOf(d))
+    .replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d));
+}
+
+function formattedNumber(v) {
+  const raw = rawNumber(v);
+  if (!raw) return "";
+  const sign = raw.startsWith("-") ? "-" : "";
+  const digits = raw.replace(/[^\d]/g, "");
+  return sign + digits.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+function bindNumberInputs(root = document) {
+  root.querySelectorAll("[data-number='true']").forEach(input => {
+    input.value = formattedNumber(input.value);
+
+    input.addEventListener("input", () => {
+      const pos = input.selectionStart || 0;
+      const before = input.value;
+      input.value = formattedNumber(input.value);
+      const diff = input.value.length - before.length;
+      try {
+        input.setSelectionRange(pos + diff, pos + diff);
+      } catch (_) {}
+    });
+  });
+}
+
+function formDataObject(form) {
+  const data = Object.fromEntries(new FormData(form));
+
+  form.querySelectorAll("[data-number='true']").forEach(input => {
+    data[input.name] = rawNumber(input.value);
+  });
+
+  return data;
+}
+
 function dateFa(v) {
 
   if (!v) return "—";
@@ -2285,7 +2327,9 @@ function buildInvoices() {
             "",
 
           reference_no:
-            p.reference_no || ""
+            p.transaction_reference ||
+            p.reference_no ||
+            ""
         };
       });
 
@@ -2557,6 +2601,20 @@ function openInvoice(id) {
     >
 
       <button
+        id="editInvoiceBtn"
+        class="secondary glass-button"
+      >
+        ویرایش فاکتور
+      </button>
+
+      <button
+        id="deleteInvoiceBtn"
+        class="danger-action"
+      >
+        حذف فاکتور
+      </button>
+
+      <button
         id="printInvoiceBtn"
         class="primary"
       >
@@ -2569,6 +2627,149 @@ function openInvoice(id) {
 
   $("#printInvoiceBtn").onclick =
     () => printInvoice(inv);
+
+  $("#editInvoiceBtn").onclick =
+    () => editInvoice(inv);
+
+  $("#deleteInvoiceBtn").onclick =
+    () => deleteInvoice(inv);
+}
+
+
+function editInvoice(inv) {
+
+  modal(`
+
+    <div class="modal-title">
+      <span>EDIT INVOICE</span>
+      <h2>ویرایش فاکتور / پرداخت</h2>
+      <p>
+        تغییرات این فرم مستقیماً روی رکورد پرداخت مالی اعمال می‌شود.
+      </p>
+    </div>
+
+    <form
+      id="editInvoiceForm"
+      class="form-grid"
+    >
+
+      ${formField(
+        "مبلغ",
+        "amount",
+        "number",
+        "",
+        inv.amount || ""
+      )}
+
+      ${selectField(
+        "روش پرداخت",
+        "payment_method",
+        `
+          ${["","کارت به کارت","انتقال بانکی","نقدی","POS"].map(x => `
+            <option
+              value="${esc(x)}"
+              ${String(x) === String(inv.payment_method || "") ? "selected" : ""}
+            >
+              ${x || "مشخص نیست"}
+            </option>
+          `).join("")}
+        `
+      )}
+
+      ${formField(
+        "تاریخ پرداخت",
+        "payment_date",
+        "date",
+        "",
+        inv.payment_date
+          ? String(inv.payment_date).slice(0,10)
+          : ""
+      )}
+
+      ${formField(
+        "شماره پیگیری",
+        "transaction_reference",
+        "text",
+        "",
+        inv.reference_no || ""
+      )}
+
+      <button
+        class="primary full submit"
+        type="submit"
+      >
+        ذخیره فاکتور
+      </button>
+
+    </form>
+  `);
+
+
+  $("#editInvoiceForm").onsubmit =
+    async e => {
+
+      e.preventDefault();
+
+      const data =
+        formDataObject(e.target);
+
+      data.payment_id =
+        inv.payment_id;
+
+      await submitPost(
+        "updatePayment",
+        data,
+        "فاکتور ویرایش شد"
+      );
+    };
+}
+
+
+async function deleteInvoice(inv) {
+
+  const ok = confirm(
+    `فاکتور ${inv.invoice_id} حذف شود؟\n\nبا حذف این فاکتور، رکورد پرداخت مرتبط هم حذف می‌شود و درآمد سیستم کاهش پیدا می‌کند.`
+  );
+
+  if (!ok) return;
+
+  try {
+
+    loading(true);
+
+    const result =
+      await post(
+        "deletePayment",
+        {
+          payment_id:
+            inv.payment_id
+        }
+      );
+
+    if (!result.success)
+      throw new Error(
+        result.message ||
+        "حذف فاکتور انجام نشد"
+      );
+
+    closeModal();
+
+    toast("فاکتور حذف شد");
+
+    await loadAll(false);
+
+  } catch (error) {
+
+    toast(
+      error.message ||
+      "حذف فاکتور انجام نشد",
+      true
+    );
+
+  } finally {
+
+    loading(false);
+  }
 }
 
 
@@ -3030,6 +3231,8 @@ function modal(html) {
   $("#modal")
     .classList
     .remove("hidden");
+
+  bindNumberInputs($("#modal"));
 }
 
 
@@ -3048,8 +3251,15 @@ function formField(
   label,
   name,
   type = "text",
-  extra = ""
+  extra = "",
+  value = ""
 ) {
+
+  const isNumber = type === "number";
+  const finalType = isNumber ? "text" : type;
+  const numberAttrs = isNumber
+    ? 'data-number="true" inputmode="numeric" autocomplete="off"'
+    : "";
 
   return `
     <label class="field">
@@ -3060,7 +3270,9 @@ function formField(
 
       <input
         name="${name}"
-        type="${type}"
+        type="${finalType}"
+        value="${esc(value)}"
+        ${numberAttrs}
         ${extra}
       >
 
@@ -3101,16 +3313,12 @@ function newLead() {
 
     <div class="modal-title">
 
-      <span>
-        NEW LEAD
-      </span>
+      <span>NEW LEAD</span>
 
-      <h2>
-        ثبت متقاضی جدید
-      </h2>
+      <h2>ثبت سریع متقاضی</h2>
 
       <p>
-        اطلاعات اولیه دانشجو را وارد کنید.
+        هیچ فیلدی اجباری نیست. فقط اطلاعاتی را که الان دارید وارد کنید.
       </p>
 
     </div>
@@ -3124,9 +3332,7 @@ function newLead() {
       ${
         formField(
           "نام و نام خانوادگی",
-          "full_name",
-          "text",
-          "required"
+          "full_name"
         )
       }
 
@@ -3135,7 +3341,7 @@ function newLead() {
           "شماره موبایل",
           "mobile",
           "tel",
-          'required inputmode="tel"'
+          'inputmode="tel"'
         )
       }
 
@@ -3144,30 +3350,14 @@ function newLead() {
         selectField(
           "دوره موردنظر",
           "course_id",
-
           `
-            <option value="">
-              انتخاب دوره
-            </option>
-
+            <option value="">فعلاً مشخص نیست</option>
             ${
-              state.courses
-                .map(
-                  c => `
-                    <option
-                      value="${esc(
-                        c.course_id
-                      )}"
-                    >
-                      ${
-                        esc(
-                          c.course_name
-                        )
-                      }
-                    </option>
-                  `
-                )
-                .join("")
+              state.courses.map(c => `
+                <option value="${esc(c.course_id)}">
+                  ${esc(c.course_name)}
+                </option>
+              `).join("")
             }
           `
         )
@@ -3178,8 +3368,8 @@ function newLead() {
         selectField(
           "منبع آشنایی",
           "source",
-
           `
+            <option value="">مشخص نیست</option>
             <option>Instagram</option>
             <option>Telegram</option>
             <option>University</option>
@@ -3191,44 +3381,51 @@ function newLead() {
       }
 
 
-      ${
-        formField(
-          "پیگیری بعدی",
-          "next_followup",
-          "datetime-local"
-        )
-      }
+      <details class="full optional-details">
 
+        <summary>
+          اطلاعات تکمیلی اختیاری
+        </summary>
 
-      ${
-        formField(
-          "مبلغ مورد انتظار",
-          "expected_amount",
-          "number",
-          'inputmode="numeric"'
-        )
-      }
+        <div class="form-grid optional-inner">
 
+          ${
+            formField(
+              "پیگیری بعدی",
+              "next_followup",
+              "datetime-local"
+            )
+          }
 
-      <label class="field full">
+          ${
+            formField(
+              "مبلغ مورد انتظار",
+              "expected_amount",
+              "number"
+            )
+          }
 
-        <span>
-          یادداشت اولیه
-        </span>
+          <label class="field full">
 
-        <textarea
-          name="notes"
-          rows="3"
-        ></textarea>
+            <span>یادداشت اولیه</span>
 
-      </label>
+            <textarea
+              name="notes"
+              rows="3"
+            ></textarea>
+
+          </label>
+
+        </div>
+
+      </details>
 
 
       <button
         class="primary full submit"
         type="submit"
       >
-        ثبت مشتری
+        ثبت متقاضی
       </button>
 
     </form>
@@ -3240,14 +3437,9 @@ function newLead() {
 
       e.preventDefault();
 
-      const data =
-        Object.fromEntries(
-          new FormData(e.target)
-        );
-
       await submitPost(
         "createLead",
-        data,
+        formDataObject(e.target),
         "مشتری ثبت شد"
       );
     };
@@ -3283,7 +3475,7 @@ function newCourse() {
           "نام دوره",
           "course_name",
           "text",
-          "required"
+          ""
         )
       }
 
@@ -3364,9 +3556,7 @@ function newCourse() {
 
       await submitPost(
         "createCourse",
-        Object.fromEntries(
-          new FormData(e.target)
-        ),
+        formDataObject(e.target),
         "دوره ایجاد شد"
       );
     };
@@ -3443,7 +3633,7 @@ function newExpense(selectedCourse = null) {
           "تاریخ",
           "expense_date",
           "date",
-          "required"
+          ""
         )
       }
 
@@ -3471,7 +3661,7 @@ function newExpense(selectedCourse = null) {
           "مبلغ",
           "amount",
           "number",
-          "required"
+          ""
         )
       }
 
@@ -3507,9 +3697,7 @@ function newExpense(selectedCourse = null) {
 
       await submitPost(
         "createExpense",
-        Object.fromEntries(
-          new FormData(e.target)
-        ),
+        formDataObject(e.target),
         "هزینه ثبت شد"
       );
     };
@@ -3604,7 +3792,7 @@ function newPayment(
           "مبلغ",
           "amount",
           "number",
-          "required"
+          ""
         )
       }
 
@@ -3613,7 +3801,7 @@ function newPayment(
           "تاریخ پرداخت",
           "payment_date",
           "date",
-          "required"
+          ""
         )
       }
 
@@ -3676,9 +3864,7 @@ function newPayment(
 
       await submitPost(
         "createPayment",
-        Object.fromEntries(
-          new FormData(e.target)
-        ),
+        formDataObject(e.target),
         "پرداخت ثبت شد"
       );
     };
@@ -3948,7 +4134,28 @@ function openLead(id) {
     </div>
 
 
-    <div class="profile-actions">
+    <div class="profile-actions customer-actions">
+
+      <button
+        id="editLeadBtn"
+        class="secondary glass-button"
+      >
+        ویرایش
+      </button>
+
+      <button
+        id="deleteLeadBtn"
+        class="danger-action"
+      >
+        حذف
+      </button>
+
+      <button
+        id="quickRegisterBtn"
+        class="primary"
+      >
+        ثبت‌نام سریع
+      </button>
 
       <button
         id="payBtn"
@@ -4056,6 +4263,18 @@ function openLead(id) {
     () =>
       newPayment(lead);
 
+  $("#editLeadBtn").onclick =
+    () =>
+      editLead(lead);
+
+  $("#deleteLeadBtn").onclick =
+    () =>
+      deleteLead(lead);
+
+  $("#quickRegisterBtn").onclick =
+    () =>
+      quickRegister(lead);
+
 
   const convert =
     $("#convertBtn");
@@ -4066,6 +4285,355 @@ function openLead(id) {
       () =>
         convertLead(lead);
   }
+}
+
+
+/* =========================================================
+   CUSTOMER EDIT / DELETE / QUICK REGISTER
+========================================================= */
+
+function editLead(lead) {
+
+  modal(`
+
+    <div class="modal-title">
+      <span>EDIT CUSTOMER</span>
+      <h2>ویرایش مشتری</h2>
+      <p>همه فیلدها اختیاری هستند.</p>
+    </div>
+
+    <form id="editLeadForm" class="form-grid">
+
+      ${formField("نام و نام خانوادگی","full_name","text","",lead.full_name || "")}
+
+      ${formField("شماره موبایل","mobile","tel",'inputmode="tel"',lead.mobile || "")}
+
+      ${selectField(
+        "دوره موردنظر",
+        "course_id",
+        `
+          <option value="">مشخص نیست</option>
+          ${state.courses.map(c => `
+            <option
+              value="${esc(c.course_id)}"
+              ${String(c.course_id) === String(lead.course_id || "") ? "selected" : ""}
+            >
+              ${esc(c.course_name)}
+            </option>
+          `).join("")}
+        `
+      )}
+
+      ${selectField(
+        "منبع آشنایی",
+        "source",
+        `
+          ${["","Instagram","Telegram","University","Referral","Website","Other"].map(s => `
+            <option
+              value="${esc(s)}"
+              ${String(s) === String(lead.source || "") ? "selected" : ""}
+            >
+              ${s || "مشخص نیست"}
+            </option>
+          `).join("")}
+        `
+      )}
+
+      ${selectField(
+        "مرحله فروش",
+        "status",
+        Object.keys(statusMap).map(s => `
+          <option
+            value="${s}"
+            ${s === lead.status ? "selected" : ""}
+          >
+            ${statusMap[s]}
+          </option>
+        `).join("")
+      )}
+
+      ${formField(
+        "پیگیری بعدی",
+        "next_followup",
+        "datetime-local",
+        "",
+        lead.next_followup ? String(lead.next_followup).slice(0,16) : ""
+      )}
+
+      ${formField(
+        "مبلغ مورد انتظار",
+        "expected_amount",
+        "number",
+        "",
+        lead.expected_amount || ""
+      )}
+
+      <label class="field full">
+        <span>یادداشت</span>
+        <textarea name="notes" rows="4">${esc(lead.notes || "")}</textarea>
+      </label>
+
+      <button class="primary full submit" type="submit">
+        ذخیره تغییرات
+      </button>
+
+    </form>
+  `);
+
+  $("#editLeadForm").onsubmit =
+    async e => {
+
+      e.preventDefault();
+
+      const data = formDataObject(e.target);
+      data.lead_id = lead.lead_id;
+
+      await submitPost(
+        "updateLead",
+        data,
+        "اطلاعات مشتری ویرایش شد"
+      );
+    };
+}
+
+
+async function deleteLead(lead) {
+
+  const ok = confirm(
+    `مشتری «${lead.full_name || "بدون نام"}» حذف شود؟\n\nپیگیری‌های CRM این مشتری هم حذف می‌شوند، اما اسناد مالی جداگانه محفوظ می‌مانند.`
+  );
+
+  if (!ok) return;
+
+  try {
+
+    loading(true);
+
+    const result =
+      await post(
+        "deleteLead",
+        {
+          lead_id: lead.lead_id
+        }
+      );
+
+    if (!result.success)
+      throw new Error(
+        result.message ||
+        "حذف انجام نشد"
+      );
+
+    closeModal();
+
+    toast("مشتری حذف شد");
+
+    await loadAll(false);
+
+  } catch (error) {
+
+    toast(
+      error.message ||
+      "حذف مشتری انجام نشد",
+      true
+    );
+
+  } finally {
+
+    loading(false);
+  }
+}
+
+
+function quickRegister(lead) {
+
+  modal(`
+
+    <div class="modal-title">
+      <span>FAST REGISTRATION</span>
+      <h2>ثبت‌نام سریع</h2>
+      <p>
+        با یک فرم کوتاه، پرداخت و تبدیل متقاضی به دانشجو انجام می‌شود.
+        همه فیلدها اختیاری هستند.
+      </p>
+    </div>
+
+    <form
+      id="quickRegisterForm"
+      class="form-grid"
+    >
+
+      ${selectField(
+        "دوره",
+        "course_id",
+        `
+          <option value="">بدون دوره</option>
+          ${state.courses.map(c => `
+            <option
+              value="${esc(c.course_id)}"
+              ${String(c.course_id) === String(lead.course_id || "") ? "selected" : ""}
+            >
+              ${esc(c.course_name)}
+            </option>
+          `).join("")}
+        `
+      )}
+
+      ${formField(
+        "مبلغ پرداختی",
+        "amount",
+        "number"
+      )}
+
+      ${selectField(
+        "روش پرداخت",
+        "payment_method",
+        `
+          <option value="">مشخص نیست</option>
+          <option>کارت به کارت</option>
+          <option>انتقال بانکی</option>
+          <option>نقدی</option>
+          <option>POS</option>
+        `
+      )}
+
+      ${formField(
+        "شماره پیگیری",
+        "transaction_reference"
+      )}
+
+      ${formField(
+        "تاریخ پرداخت",
+        "payment_date",
+        "date"
+      )}
+
+      <button
+        class="primary full submit"
+        type="submit"
+      >
+        ثبت‌نام و تبدیل به دانشجو
+      </button>
+
+    </form>
+  `);
+
+
+  $("#quickRegisterForm").onsubmit =
+    async e => {
+
+      e.preventDefault();
+
+      const data =
+        formDataObject(e.target);
+
+      const button = $(".submit");
+
+      if (button) {
+        button.disabled = true;
+        button.textContent = "در حال ثبت...";
+      }
+
+      try {
+
+        if (
+          data.course_id &&
+          String(data.course_id) !==
+          String(lead.course_id || "")
+        ) {
+          const update = await post(
+            "updateLead",
+            {
+              lead_id: lead.lead_id,
+              course_id: data.course_id
+            }
+          );
+
+          if (!update.success)
+            throw new Error(
+              update.message ||
+              "دوره مشتری بروزرسانی نشد"
+            );
+        }
+
+        if (rawNumber(data.amount)) {
+
+          const pay = await post(
+            "createPayment",
+            {
+              lead_id: lead.lead_id,
+              course_id:
+                data.course_id ||
+                lead.course_id ||
+                "",
+              amount: rawNumber(data.amount),
+              payment_method:
+                data.payment_method || "",
+              transaction_reference:
+                data.transaction_reference || "",
+              payment_date:
+                data.payment_date || "",
+              status: "approved"
+            }
+          );
+
+          if (!pay.success)
+            throw new Error(
+              pay.message ||
+              "پرداخت ثبت نشد"
+            );
+        }
+
+        if (lead.status !== "registered") {
+
+          const converted =
+            await post(
+              "convertLead",
+              {
+                lead_id:
+                  lead.lead_id,
+                course_id:
+                  data.course_id ||
+                  lead.course_id ||
+                  ""
+              }
+            );
+
+          if (
+            !converted.success &&
+            !String(
+              converted.message || ""
+            ).includes("قبلاً")
+          ) {
+            throw new Error(
+              converted.message ||
+              "تبدیل به دانشجو انجام نشد"
+            );
+          }
+        }
+
+        closeModal();
+
+        toast(
+          "ثبت‌نام سریع با موفقیت انجام شد"
+        );
+
+        await loadAll(false);
+
+      } catch (error) {
+
+        toast(
+          error.message ||
+          "ثبت‌نام انجام نشد",
+          true
+        );
+
+        if (button) {
+          button.disabled = false;
+          button.textContent =
+            "تلاش مجدد";
+        }
+      }
+    };
 }
 
 
@@ -4173,7 +4741,7 @@ function followForm(lead) {
           "نتیجه",
           "result",
           "text",
-          "required"
+          ""
         )
       }
 
@@ -4218,9 +4786,7 @@ function followForm(lead) {
 
       await submitPost(
         "addFollowUp",
-        Object.fromEntries(
-          new FormData(e.target)
-        ),
+        formDataObject(e.target),
         "پیگیری ثبت شد"
       );
     };
