@@ -220,9 +220,25 @@ function fetchTimeout(
       ...options,
       signal: controller.signal
     }
-  ).finally(
-    () => clearTimeout(timer)
-  );
+  )
+    .catch(error => {
+
+      if (
+        error?.name === "AbortError" ||
+        String(error?.message || "")
+          .toLowerCase()
+          .includes("aborted")
+      ) {
+        throw new Error(
+          "پاسخ سرور طولانی شد. دوباره تلاش کنید."
+        );
+      }
+
+      throw error;
+    })
+    .finally(
+      () => clearTimeout(timer)
+    );
 }
 
 
@@ -243,7 +259,7 @@ async function get(action) {
         method: "GET",
         cache: "no-store"
       },
-      12000
+      20000
     );
 
   if (!response.ok)
@@ -295,7 +311,7 @@ async function post(
             data
           })
       },
-      15000
+      35000
     );
 
   if (!response.ok)
@@ -2726,6 +2742,14 @@ function editInvoice(inv) {
 
 
 async function deleteInvoice(inv) {
+
+  if (!inv.payment_id) {
+    toast(
+      "شناسه پرداخت این فاکتور پیدا نشد.",
+      true
+    );
+    return;
+  }
 
   const ok = confirm(
     `فاکتور ${inv.invoice_id} حذف شود؟\n\nبا حذف این فاکتور، رکورد پرداخت مرتبط هم حذف می‌شود و درآمد سیستم کاهش پیدا می‌کند.`
