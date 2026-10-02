@@ -5212,7 +5212,10 @@ function renderInventory() {
                       کد
                     </th>
                     <th style="padding:12px;text-align:right">
-                      واحد
+                      واحد مصرف
+                    </th>
+                    <th style="padding:12px;text-align:right">
+                      واحد خرید
                     </th>
                     <th style="padding:12px;text-align:right">
                       موجودی
@@ -5282,6 +5285,38 @@ function renderInventory() {
 
                           <td style="padding:12px">
                             ${esc(p.unit || "عدد")}
+                          </td>
+
+                          <td style="padding:12px">
+                            <b>
+                              ${esc(
+                                p.purchase_unit ||
+                                p.unit ||
+                                "عدد"
+                              )}
+                            </b>
+                            <div
+                              style="
+                                font-size:9px;
+                                opacity:.58;
+                                margin-top:3px;
+                              "
+                            >
+                              هر
+                              ${esc(
+                                p.purchase_unit ||
+                                p.unit ||
+                                "واحد"
+                              )}
+                              =
+                              ${faNum(
+                                Number(
+                                  p.units_per_purchase ||
+                                  1
+                                )
+                              )}
+                              ${esc(p.unit || "عدد")}
+                            </div>
                           </td>
 
                           <td style="padding:12px">
@@ -5736,11 +5771,30 @@ function editProduct(product) {
       )}
 
       ${formField(
-        "واحد",
+        "واحد مصرف",
         "unit",
         "text",
         "",
         product.unit || ""
+      )}
+
+      ${formField(
+        "واحد خرید",
+        "purchase_unit",
+        "text",
+        "",
+        product.purchase_unit ||
+        product.unit ||
+        ""
+      )}
+
+      ${formField(
+        "تعداد واحد مصرف در هر واحد خرید",
+        "units_per_purchase",
+        "number",
+        "",
+        product.units_per_purchase ||
+        1
       )}
 
       ${formField(
@@ -6021,10 +6075,24 @@ function newProduct() {
       )}
 
       ${formField(
-        "واحد",
+        "واحد مصرف",
         "unit",
         "text",
-        'placeholder="عدد، بسته، جفت، متر..."'
+        'placeholder="مثلاً عدد، جفت، متر..."'
+      )}
+
+      ${formField(
+        "واحد خرید",
+        "purchase_unit",
+        "text",
+        'placeholder="مثلاً بسته، کارتن، جعبه..."'
+      )}
+
+      ${formField(
+        "تعداد واحد مصرف در هر واحد خرید",
+        "units_per_purchase",
+        "number",
+        'placeholder="مثلاً 150"'
       )}
 
       ${formField(
@@ -6197,10 +6265,13 @@ function purchaseLineHtml(index) {
 
       <div class="form-grid">
 
-        ${selectField(
-          "کالا",
-          `product_id_${index}`,
-          `
+        <label class="field">
+          <span>کالا</span>
+
+          <select
+            name="product_id_${index}"
+            class="purchase-product-select"
+          >
             <option value="">
               انتخاب کالا
             </option>
@@ -6211,28 +6282,54 @@ function purchaseLineHtml(index) {
                   value="${esc(p.product_id)}"
                 >
                   ${esc(p.product_name)}
-                  ${
-                    p.unit
-                      ? " — " + esc(p.unit)
-                      : ""
-                  }
+                  — خرید:
+                  ${esc(
+                    p.purchase_unit ||
+                    p.unit ||
+                    "واحد"
+                  )}
+                  / مصرف:
+                  ${esc(p.unit || "عدد")}
                 </option>
               `).join("")
             }
-          `
-        )}
+          </select>
+        </label>
 
-        ${formField(
-          "تعداد",
-          `quantity_${index}`,
-          "number"
-        )}
 
-        ${formField(
-          "قیمت واحد",
-          `unit_price_${index}`,
-          "number"
-        )}
+        <label class="field">
+          <span
+            class="purchase-qty-label"
+          >
+            تعداد واحد خرید
+          </span>
+
+          <input
+            name="purchase_quantity_${index}"
+            type="text"
+            data-number="true"
+            inputmode="numeric"
+            autocomplete="off"
+          >
+        </label>
+
+
+        <label class="field">
+          <span
+            class="purchase-price-label"
+          >
+            قیمت هر واحد خرید
+          </span>
+
+          <input
+            name="purchase_unit_price_${index}"
+            type="text"
+            data-number="true"
+            inputmode="numeric"
+            autocomplete="off"
+          >
+        </label>
+
 
         <div class="field">
           <span>مبلغ ردیف</span>
@@ -6255,9 +6352,28 @@ function purchaseLineHtml(index) {
 
       </div>
 
+
+      <div
+        class="purchase-conversion-preview"
+        style="
+          margin-top:10px;
+          padding:11px 12px;
+          border-radius:15px;
+          border:1px solid rgba(255,255,255,.1);
+          background:rgba(255,255,255,.05);
+          font-size:10px;
+          line-height:1.9;
+          opacity:.82;
+        "
+      >
+        کالا را انتخاب کنید تا تبدیل واحد خرید به موجودی مصرف نمایش داده شود.
+      </div>
+
     </div>
   `;
 }
+
+
 
 
 function ancillaryCostLineHtml(index) {
@@ -6399,7 +6515,7 @@ async function newPurchase() {
           </h3>
 
           <small style="opacity:.6">
-            تعداد و قیمت واحد هر کالا را وارد کنید.
+            فقط تعداد واحد خرید و قیمت همان واحد را وارد کنید؛ تبدیل به واحد مصرف خودکار است.
           </small>
 
         </div>
@@ -6613,6 +6729,173 @@ async function newPurchase() {
   }
 
 
+  function getProductFromLine(line) {
+
+    const select =
+      line.querySelector(
+        ".purchase-product-select"
+      );
+
+    return state.products.find(
+      p =>
+        String(p.product_id) ===
+        String(select?.value || "")
+    );
+  }
+
+
+  function updateLineConversion(
+    line
+  ) {
+
+    const index =
+      line.dataset.purchaseLine;
+
+    const product =
+      getProductFromLine(line);
+
+    const qty =
+      Number(
+        rawNumber(
+          line.querySelector(
+            `[name="purchase_quantity_${index}"]`
+          )?.value
+        ) || 0
+      );
+
+    const packagePrice =
+      Number(
+        rawNumber(
+          line.querySelector(
+            `[name="purchase_unit_price_${index}"]`
+          )?.value
+        ) || 0
+      );
+
+    const purchaseUnit =
+      product?.purchase_unit ||
+      product?.unit ||
+      "واحد";
+
+    const consumptionUnit =
+      product?.unit ||
+      "عدد";
+
+    const factor =
+      Math.max(
+        1,
+        Number(
+          product?.units_per_purchase ||
+          1
+        )
+      );
+
+    const consumptionQty =
+      qty * factor;
+
+    const lineTotal =
+      qty * packagePrice;
+
+    const baseUnitCost =
+      consumptionQty > 0
+        ? lineTotal /
+          consumptionQty
+        : 0;
+
+
+    const qtyLabel =
+      line.querySelector(
+        ".purchase-qty-label"
+      );
+
+    if (qtyLabel) {
+      qtyLabel.textContent =
+        `تعداد ${purchaseUnit} خریداری‌شده`;
+    }
+
+
+    const priceLabel =
+      line.querySelector(
+        ".purchase-price-label"
+      );
+
+    if (priceLabel) {
+      priceLabel.textContent =
+        `قیمت هر ${purchaseUnit}`;
+    }
+
+
+    const totalEl =
+      line.querySelector(
+        ".purchase-line-total"
+      );
+
+    if (totalEl) {
+      totalEl.textContent =
+        money(lineTotal);
+    }
+
+
+    const preview =
+      line.querySelector(
+        ".purchase-conversion-preview"
+      );
+
+    if (!preview) return;
+
+    if (!product) {
+
+      preview.innerHTML =
+        "کالا را انتخاب کنید تا تبدیل واحد نمایش داده شود.";
+
+      return;
+    }
+
+    preview.innerHTML = `
+      <b>
+        هر
+        ${esc(purchaseUnit)}
+        =
+        ${faNum(factor)}
+        ${esc(consumptionUnit)}
+      </b>
+
+      <br>
+
+      ${
+        qty
+          ? `
+            این خرید وارد انبار می‌کند:
+            <b>
+              ${faNum(consumptionQty)}
+              ${esc(consumptionUnit)}
+            </b>
+          `
+          : `
+            تعداد
+            ${esc(purchaseUnit)}
+            خریداری‌شده را وارد کنید.
+          `
+      }
+
+      ${
+        qty &&
+        packagePrice
+          ? `
+            <br>
+            قیمت پایه هر
+            ${esc(consumptionUnit)}
+            قبل از هزینه‌های جانبی:
+            <b>
+              ${money(baseUnitCost)}
+            </b>
+          `
+          : ""
+      }
+    `;
+  }
+
+
   function bindPurchaseLines() {
 
     $$(".remove-purchase-line")
@@ -6647,10 +6930,51 @@ async function newPurchase() {
       });
 
 
-    $$(
-      ".purchase-line input, " +
-      ".ancillary-cost-line input"
-    )
+    $$(".purchase-line")
+      .forEach(line => {
+
+        const productSelect =
+          line.querySelector(
+            ".purchase-product-select"
+          );
+
+        if (productSelect) {
+
+          productSelect.onchange =
+            () => {
+
+              updateLineConversion(
+                line
+              );
+
+              updatePurchaseTotals();
+            };
+        }
+
+        line
+          .querySelectorAll(
+            "input"
+          )
+          .forEach(input => {
+
+            input.oninput =
+              () => {
+
+                updateLineConversion(
+                  line
+                );
+
+                updatePurchaseTotals();
+              };
+          });
+
+        updateLineConversion(
+          line
+        );
+      });
+
+
+    $$(".ancillary-cost-line input")
       .forEach(input => {
 
         input.oninput =
@@ -6669,40 +6993,34 @@ async function newPurchase() {
         const index =
           line.dataset.purchaseLine;
 
-        const quantity =
+        const purchaseQty =
           Number(
             rawNumber(
               line.querySelector(
-                `[name="quantity_${index}"]`
+                `[name="purchase_quantity_${index}"]`
               )?.value
             ) || 0
           );
 
-        const unitPrice =
+        const purchaseUnitPrice =
           Number(
             rawNumber(
               line.querySelector(
-                `[name="unit_price_${index}"]`
+                `[name="purchase_unit_price_${index}"]`
               )?.value
             ) || 0
           );
 
         const lineTotal =
-          quantity *
-          unitPrice;
+          purchaseQty *
+          purchaseUnitPrice;
 
         total +=
           lineTotal;
 
-        const el =
-          line.querySelector(
-            ".purchase-line-total"
-          );
-
-        if (el) {
-          el.textContent =
-            money(lineTotal);
-        }
+        updateLineConversion(
+          line
+        );
       });
 
     return total;
@@ -6798,36 +7116,37 @@ async function newPurchase() {
               `[name="product_id_${index}"]`
             )?.value || "";
 
-          const quantity =
+          const purchaseQuantity =
             Number(
               rawNumber(
                 line.querySelector(
-                  `[name="quantity_${index}"]`
+                  `[name="purchase_quantity_${index}"]`
                 )?.value
               ) || 0
             );
 
-          const unitPrice =
+          const purchaseUnitPrice =
             Number(
               rawNumber(
                 line.querySelector(
-                  `[name="unit_price_${index}"]`
+                  `[name="purchase_unit_price_${index}"]`
                 )?.value
               ) || 0
             );
 
           if (
             productId ||
-            quantity ||
-            unitPrice
+            purchaseQuantity ||
+            purchaseUnitPrice
           ) {
 
             items.push({
               product_id:
                 productId,
-              quantity,
-              unit_price:
-                unitPrice
+              purchase_quantity:
+                purchaseQuantity,
+              purchase_unit_price:
+                purchaseUnitPrice
             });
           }
         });
