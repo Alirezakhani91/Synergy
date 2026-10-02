@@ -1711,7 +1711,7 @@ async function loadAll(
       if one of the individual inventory GET requests fails,
       fetch the inventory dataset in one bundled request.
     */
-    if (!state.products.length) {
+    if (!activeProducts().length) {
 
       try {
 
@@ -4959,6 +4959,18 @@ function inventoryProductValue(productId) {
     );
 }
 
+
+function activeProducts() {
+  return state.products.filter(
+    p =>
+      String(
+        p.status || "active"
+      ).toLowerCase() !==
+      "deleted"
+  );
+}
+
+
 function inventoryTotals() {
   const stockValue =
     state.purchaseItems.reduce(
@@ -4986,7 +4998,7 @@ function inventoryTotals() {
     );
 
   const lowStock =
-    state.products.filter(p => {
+    activeProducts().filter(p => {
       const min =
         Number(p.min_stock || 0);
       if (!min) return false;
@@ -5100,7 +5112,7 @@ function renderInventory() {
       <div class="kpi">
         <span>اقلام تعریف‌شده</span>
         <strong>
-          ${faNum(state.products.length)}
+          ${faNum(activeProducts().length)}
         </strong>
         <small>SKU / کالا</small>
       </div>
@@ -5175,7 +5187,7 @@ function renderInventory() {
     <section class="panel">
 
       ${
-        state.products.length
+        activeProducts().length
           ? `
             <div
               style="
@@ -5212,7 +5224,7 @@ function renderInventory() {
                       ارزش موجودی
                     </th>
                     <th style="padding:12px;text-align:right">
-                      ویرایش
+                      عملیات
                     </th>
                   </tr>
                 </thead>
@@ -5220,7 +5232,7 @@ function renderInventory() {
                 <tbody>
 
                   ${
-                    state.products.map(p => {
+                    activeProducts().map(p => {
 
                       const stock =
                         inventoryProductStock(
@@ -5299,12 +5311,27 @@ function renderInventory() {
                           </td>
 
                           <td style="padding:12px">
-                            <button
-                              class="secondary glass-button mini-edit-btn"
-                              data-product-edit="${esc(p.product_id)}"
+                            <div
+                              style="
+                                display:flex;
+                                gap:6px;
+                                flex-wrap:wrap;
+                              "
                             >
-                              ویرایش
-                            </button>
+                              <button
+                                class="secondary glass-button mini-edit-btn"
+                                data-product-edit="${esc(p.product_id)}"
+                              >
+                                ویرایش
+                              </button>
+
+                              <button
+                                class="danger-action mini-edit-btn"
+                                data-product-delete="${esc(p.product_id)}"
+                              >
+                                حذف
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       `;
@@ -5548,6 +5575,98 @@ function renderInventory() {
         if (product)
           editProduct(product);
       };
+    });
+
+
+  $$("[data-product-delete]")
+    .forEach(button => {
+
+      button.onclick =
+        async () => {
+
+          const product =
+            state.products.find(
+              p =>
+                String(p.product_id) ===
+                String(
+                  button.dataset.productDelete
+                )
+            );
+
+          if (!product) return;
+
+          const stock =
+            inventoryProductStock(
+              product.product_id
+            );
+
+          const ok =
+            confirm(
+              `کالای «${product.product_name || "بدون نام"}» حذف شود؟\n\n` +
+              (
+                stock > 0
+                  ? `این کالا ${stock} ${product.unit || ""} موجودی دارد. برای حفظ سابقه مالی، از لیست فعال حذف می‌شود ولی تاریخچه خرید و مصرف باقی می‌ماند.`
+                  : "اگر سابقه خرید یا مصرف داشته باشد، تاریخچه آن حفظ می‌شود."
+              )
+            );
+
+          if (!ok) return;
+
+          try {
+
+            loading(true);
+
+            const result =
+              await post(
+                "deleteProduct",
+                {
+                  product_id:
+                    product.product_id
+                }
+              );
+
+            if (!result?.success) {
+              throw new Error(
+                result?.message ||
+                "حذف کالا انجام نشد."
+              );
+            }
+
+            state.products =
+              state.products.map(p =>
+                String(p.product_id) ===
+                String(product.product_id)
+                  ? {
+                      ...p,
+                      status:"deleted"
+                    }
+                  : p
+              );
+
+            toast(
+              result.mode === "hard"
+                ? "کالا حذف شد"
+                : "کالا از لیست فعال حذف شد و سابقه آن حفظ شد"
+            );
+
+            render();
+
+            refreshInventoryData()
+              .then(() => render());
+
+          } catch (error) {
+
+            toast(
+              error.message ||
+              "حذف کالا انجام نشد.",
+              true
+            );
+
+          } finally {
+
+            loading(false);
+          }
+        };
     });
 
   $$("[data-purchase-edit]")
@@ -5943,8 +6062,18 @@ function newProduct() {
 
       e.preventDefault();
 
+      const form =
+        e.target;
+
+      if (!form.dataset.requestId) {
+        form.dataset.requestId =
+          createRequestId(
+            "PRDREQ"
+          );
+      }
+
       const button =
-        e.target.querySelector(
+        form.querySelector(
           ".submit"
         );
 
@@ -5956,12 +6085,16 @@ function newProduct() {
 
       try {
 
+        const payload =
+          formDataObject(form);
+
+        payload._request_id =
+          form.dataset.requestId;
+
         const result =
           await post(
             "createProduct",
-            formDataObject(
-              e.target
-            )
+            payload
           );
 
         if (!result?.success) {
@@ -5971,12 +6104,6 @@ function newProduct() {
           );
         }
 
-        /*
-          Important:
-          Use the product returned by the backend immediately.
-          This prevents the newly-created item disappearing
-          while a Google Sheets GET refresh is still pending.
-        */
         if (result.data) {
 
           state.products =
@@ -5995,27 +6122,30 @@ function newProduct() {
         closeModal();
 
         toast(
-          "کالا تعریف شد"
+          result.duplicate_request
+            ? "این کالا قبلاً با همین درخواست ثبت شده بود؛ رکورد تکراری ساخته نشد."
+            : "کالا تعریف شد"
         );
 
         render();
 
         /*
-          Then reconcile all inventory data from Sheets.
-          Even if this refresh temporarily fails,
-          the newly-created product remains available locally.
+          Reconcile in background; success is not dependent
+          on this refresh finishing.
         */
-        await refreshInventoryData();
-
-        render();
+        refreshInventoryData()
+          .then(() => render());
 
       } catch (error) {
 
         console.error(error);
 
         toast(
-          error.message ||
-          "کالا ثبت نشد.",
+          (
+            error.message ||
+            "ارتباط با سرور کامل نشد."
+          ) +
+          " اگر دوباره بزنید، کالا دوباره ثبت نمی‌شود.",
           true
         );
 
@@ -6076,7 +6206,7 @@ function purchaseLineHtml(index) {
             </option>
 
             ${
-              state.products.map(p => `
+              activeProducts().map(p => `
                 <option
                   value="${esc(p.product_id)}"
                 >
@@ -6182,7 +6312,7 @@ async function newPurchase() {
     Never trust only the local state here.
     Re-read inventory first when the product list looks empty.
   */
-  if (!state.products.length) {
+  if (!activeProducts().length) {
 
     toast(
       "در حال دریافت لیست کالاها..."
@@ -6774,7 +6904,7 @@ async function newPurchase() {
 
 function newConsumption() {
 
-  if (!state.products.length) {
+  if (!activeProducts().length) {
     toast(
       "کالایی برای مصرف تعریف نشده است.",
       true
@@ -6826,7 +6956,7 @@ function newConsumption() {
           </option>
 
           ${
-            state.products.map(p => {
+            activeProducts().map(p => {
 
               const stock =
                 inventoryProductStock(
@@ -7959,7 +8089,7 @@ function renderReports() {
             <span>کالاهای تعریف‌شده</span>
             <b>
               ${faNum(
-                state.products.length
+                activeProducts().length
               )}
             </b>
           </div>
@@ -9199,6 +9329,31 @@ function newPayment(
    POST SUBMIT
 ========================================================= */
 
+
+function createRequestId(prefix = "REQ") {
+  if (
+    typeof crypto !== "undefined" &&
+    crypto.randomUUID
+  ) {
+    return (
+      prefix +
+      "-" +
+      crypto.randomUUID()
+    );
+  }
+
+  return (
+    prefix +
+    "-" +
+    Date.now() +
+    "-" +
+    Math.random()
+      .toString(36)
+      .slice(2,10)
+  );
+}
+
+
 async function submitPost(
   action,
   data,
@@ -9207,6 +9362,38 @@ async function submitPost(
 
   const button =
     $(".submit");
+
+  const form =
+    button?.closest("form");
+
+  /*
+    Keep the same request id while the same form is open.
+    If the server successfully writes but the browser loses
+    the response, retrying will NOT create a duplicate.
+  */
+  if (
+    action === "createFinalCustomer" ||
+    action === "createProduct"
+  ) {
+
+    if (
+      form &&
+      !form.dataset.requestId
+    ) {
+      form.dataset.requestId =
+        createRequestId(
+          action === "createProduct"
+            ? "PRDREQ"
+            : "CUSREQ"
+        );
+    }
+
+    data._request_id =
+      form?.dataset.requestId ||
+      data._request_id ||
+      createRequestId("REQ");
+  }
+
 
   if (button) {
 
@@ -9235,19 +9422,31 @@ async function submitPost(
     }
 
 
-    toast(message);
+    toast(
+      result.duplicate_request
+        ? "این درخواست قبلاً ثبت شده بود؛ رکورد تکراری ساخته نشد."
+        : message
+    );
 
     closeModal();
 
-    await loadAll(false);
+    /*
+      Do not block the user's success flow on a full refresh.
+      The write is already confirmed by the server.
+    */
+    loadAll(false);
 
   } catch (error) {
 
     console.error(error);
 
-    toast(
+    const messageText =
       error.message ||
-      "ثبت انجام نشد",
+      "ثبت انجام نشد";
+
+    toast(
+      messageText +
+      " — در صورت تلاش مجدد، سیستم از ثبت تکراری جلوگیری می‌کند.",
       true
     );
 
