@@ -5770,22 +5770,34 @@ function editProduct(product) {
         product.sku || ""
       )}
 
-      ${formField(
+      ${selectField(
         "واحد مصرف",
         "unit",
-        "text",
-        "",
-        product.unit || ""
+        `
+          ${["","عدد","بسته","جفت"].map(x => `
+            <option
+              value="${esc(x)}"
+              ${String(x) === String(product.unit || "") ? "selected" : ""}
+            >
+              ${x || "انتخاب کنید"}
+            </option>
+          `).join("")}
+        `
       )}
 
-      ${formField(
+      ${selectField(
         "واحد خرید",
         "purchase_unit",
-        "text",
-        "",
-        product.purchase_unit ||
-        product.unit ||
-        ""
+        `
+          ${["","عدد","بسته","جفت"].map(x => `
+            <option
+              value="${esc(x)}"
+              ${String(x) === String(product.purchase_unit || product.unit || "") ? "selected" : ""}
+            >
+              ${x || "انتخاب کنید"}
+            </option>
+          `).join("")}
+        `
       )}
 
       ${formField(
@@ -5797,12 +5809,19 @@ function editProduct(product) {
         1
       )}
 
-      ${formField(
+      ${selectField(
         "دسته‌بندی",
         "category",
-        "text",
-        "",
-        product.category || ""
+        `
+          ${["","مصرفی","تجهیزات","سایر"].map(x => `
+            <option
+              value="${esc(x)}"
+              ${String(x) === String(product.category || "") ? "selected" : ""}
+            >
+              ${x || "انتخاب کنید"}
+            </option>
+          `).join("")}
+        `
       )}
 
       ${formField(
@@ -6074,18 +6093,26 @@ function newProduct() {
         "sku"
       )}
 
-      ${formField(
+      ${selectField(
         "واحد مصرف",
         "unit",
-        "text",
-        'placeholder="مثلاً عدد، جفت، متر..."'
+        `
+          <option value="">انتخاب کنید</option>
+          <option value="عدد">عدد</option>
+          <option value="بسته">بسته</option>
+          <option value="جفت">جفت</option>
+        `
       )}
 
-      ${formField(
+      ${selectField(
         "واحد خرید",
         "purchase_unit",
-        "text",
-        'placeholder="مثلاً بسته، کارتن، جعبه..."'
+        `
+          <option value="">انتخاب کنید</option>
+          <option value="عدد">عدد</option>
+          <option value="بسته">بسته</option>
+          <option value="جفت">جفت</option>
+        `
       )}
 
       ${formField(
@@ -6095,9 +6122,15 @@ function newProduct() {
         'placeholder="مثلاً 150"'
       )}
 
-      ${formField(
+      ${selectField(
         "دسته‌بندی",
-        "category"
+        "category",
+        `
+          <option value="">انتخاب کنید</option>
+          <option value="مصرفی">مصرفی</option>
+          <option value="تجهیزات">تجهیزات</option>
+          <option value="سایر">سایر</option>
+        `
       )}
 
       ${formField(
