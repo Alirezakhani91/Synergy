@@ -431,217 +431,24 @@ function initThemeControls() {
   if ($("#themeControlFab"))
     return;
 
-  const settings =
-    loadThemeSettings();
-
   document.body.insertAdjacentHTML(
     "beforeend",
     `
       <button
         id="themeControlFab"
         class="theme-control-fab"
-        aria-label="تنظیم رنگ و ظاهر"
-        title="تنظیم رنگ و ظاهر"
+        aria-label="تنظیم کامل رنگ‌ها"
+        title="تنظیم کامل رنگ‌ها"
+        type="button"
       >
-        ◐
+        🎨
       </button>
-
-      <div
-        id="themeControlPanel"
-        class="theme-control-panel hidden"
-      >
-
-        <div class="theme-control-head">
-          <div>
-            <b>ظاهر پلتفرم</b>
-            <span>تغییرات را همان لحظه ببینید</span>
-          </div>
-
-          <button
-            id="themeControlClose"
-            type="button"
-          >
-            ×
-          </button>
-        </div>
-
-        <label class="theme-range">
-          <div>
-            <span>روشنایی پس‌زمینه</span>
-            <b id="themeLightValue">
-              ${faNum(settings.light)}
-            </b>
-          </div>
-
-          <input
-            id="themeLight"
-            type="range"
-            min="35"
-            max="78"
-            value="${settings.light}"
-          >
-        </label>
-
-        <label class="theme-range">
-          <div>
-            <span>شدت صورتی</span>
-            <b id="themePinkValue">
-              ${faNum(settings.pink)}
-            </b>
-          </div>
-
-          <input
-            id="themePink"
-            type="range"
-            min="0"
-            max="100"
-            value="${settings.pink}"
-          >
-        </label>
-
-        <label class="theme-range">
-          <div>
-            <span>طیف رنگی</span>
-            <b id="themeHueValue">
-              ${faNum(settings.hue)}
-            </b>
-          </div>
-
-          <input
-            id="themeHue"
-            type="range"
-            min="280"
-            max="355"
-            value="${settings.hue}"
-          >
-        </label>
-
-        <div class="theme-preset-row">
-
-          <button
-            type="button"
-            data-theme-preset="soft"
-          >
-            صورتی روشن
-          </button>
-
-          <button
-            type="button"
-            data-theme-preset="balanced"
-          >
-            متعادل
-          </button>
-
-          <button
-            type="button"
-            data-theme-preset="deep"
-          >
-            پررنگ
-          </button>
-
-        </div>
-
-      </div>
     `
   );
 
-  const panel =
-    $("#themeControlPanel");
-
-  const light =
-    $("#themeLight");
-
-  const pink =
-    $("#themePink");
-
-  const hue =
-    $("#themeHue");
-
-  function readAndApply() {
-
-    const next = {
-      light:Number(light.value),
-      pink:Number(pink.value),
-      hue:Number(hue.value)
-    };
-
-    $("#themeLightValue").textContent =
-      faNum(next.light);
-
-    $("#themePinkValue").textContent =
-      faNum(next.pink);
-
-    $("#themeHueValue").textContent =
-      faNum(next.hue);
-
-    applyTheme(next);
-    saveThemeSettings(next);
-  }
-
-  applyTheme(settings);
-
   $("#themeControlFab").onclick =
     () =>
-      panel.classList.toggle(
-        "hidden"
-      );
-
-  $("#themeControlClose").onclick =
-    () =>
-      panel.classList.add(
-        "hidden"
-      );
-
-  [light,pink,hue]
-    .forEach(
-      input =>
-        input.addEventListener(
-          "input",
-          readAndApply
-        )
-    );
-
-  $$("[data-theme-preset]")
-    .forEach(button => {
-
-      button.onclick = () => {
-
-        const preset =
-          button.dataset.themePreset;
-
-        const values = {
-          soft:{
-            light:70,
-            pink:76,
-            hue:326
-          },
-          balanced:{
-            light:58,
-            pink:66,
-            hue:322
-          },
-          deep:{
-            light:45,
-            pink:84,
-            hue:318
-          }
-        }[preset];
-
-        if (!values)
-          return;
-
-        light.value =
-          values.light;
-
-        pink.value =
-          values.pink;
-
-        hue.value =
-          values.hue;
-
-        readAndApply();
-      };
-    });
+      openUniversalThemePanel();
 }
 
 
@@ -9657,37 +9464,9 @@ function bindUniversalThemePanel() {
 
 
 function ensureUniversalThemeButton() {
-
-  if (
-    document.getElementById(
-      "universalThemeButton"
-    )
-  ) return;
-
-  const button =
-    document.createElement("button");
-
-  button.id =
-    "universalThemeButton";
-
-  button.className =
-    "universal-theme-button";
-
-  button.type =
-    "button";
-
-  button.title =
-    "تنظیم رنگ پلتفرم";
-
-  button.innerHTML =
-    "🎨";
-
-  button.onclick =
-    openUniversalThemePanel;
-
-  document.body.appendChild(
-    button
-  );
+  // The main 🎨 button is created by initThemeControls().
+  // Kept as a no-op to avoid duplicate theme buttons.
+  return;
 }
 
 
