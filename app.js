@@ -14,6 +14,11 @@ const state = {
   expenses: [],
   followups: [],
   invoices: [],
+  products: [],
+  purchases: [],
+  purchaseItems: [],
+  consumptions: [],
+  inventoryMovements: [],
   selectedLead: null,
   selectedCourse: null,
   loading: false
@@ -46,6 +51,7 @@ const navItems = [
   ["leads", "◎", "مشتریان"],
   ["courses", "▣", "دوره‌ها"],
   ["finance", "◈", "مالی"],
+  ["inventory", "◫", "انبار"],
   ["invoices", "▧", "فاکتورها"],
   ["reports", "▤", "گزارش"]
 ];
@@ -388,7 +394,12 @@ async function loadAll(
         safeLoad("students", []),
         safeLoad("payments", []),
         safeLoad("expenses", []),
-        safeLoad("followups", [])
+        safeLoad("followups", []),
+        safeLoad("products", []),
+        safeLoad("purchases", []),
+        safeLoad("purchaseItems", []),
+        safeLoad("consumptions", []),
+        safeLoad("inventoryMovements", [])
       ]);
 
 
@@ -411,7 +422,12 @@ async function loadAll(
       students,
       payments,
       expenses,
-      followups
+      followups,
+      products,
+      purchases,
+      purchaseItems,
+      consumptions,
+      inventoryMovements
     ] = values;
 
 
@@ -454,6 +470,36 @@ async function loadAll(
     if (followups.ok) {
       state.followups =
         followups.data || [];
+      anySuccess = true;
+    }
+
+    if (products.ok) {
+      state.products =
+        products.data || [];
+      anySuccess = true;
+    }
+
+    if (purchases.ok) {
+      state.purchases =
+        purchases.data || [];
+      anySuccess = true;
+    }
+
+    if (purchaseItems.ok) {
+      state.purchaseItems =
+        purchaseItems.data || [];
+      anySuccess = true;
+    }
+
+    if (consumptions.ok) {
+      state.consumptions =
+        consumptions.data || [];
+      anySuccess = true;
+    }
+
+    if (inventoryMovements.ok) {
+      state.inventoryMovements =
+        inventoryMovements.data || [];
       anySuccess = true;
     }
 
@@ -589,6 +635,7 @@ function render() {
     leads: renderLeads,
     courses: renderCourses,
     finance: renderFinance,
+    inventory: renderInventory,
     invoices: renderInvoices,
     reports: renderReports
   };
@@ -1202,9 +1249,22 @@ function courseExpenses(courseId) {
   );
 }
 
+function courseConsumptions(courseId) {
+  return state.consumptions.filter(
+    x => String(x.course_id) === String(courseId)
+  );
+}
+
 function sumAmount(arr) {
   return arr.reduce(
     (sum, item) => sum + Number(item.amount || 0),
+    0
+  );
+}
+
+function sumConsumptionCost(arr) {
+  return arr.reduce(
+    (sum, item) => sum + Number(item.total_cost || 0),
     0
   );
 }
@@ -1214,12 +1274,15 @@ function courseMetrics(course) {
   const leads = courseLeads(course.course_id);
   const payments = coursePayments(course.course_id);
   const expenses = courseExpenses(course.course_id);
+  const consumptions = courseConsumptions(course.course_id);
 
   const capacity = Number(course.capacity || 0);
   const registered = students.length;
   const remaining = Math.max(0, capacity - registered);
   const revenue = sumAmount(payments);
-  const cost = sumAmount(expenses);
+  const serviceCost = sumAmount(expenses);
+  const inventoryCost = sumConsumptionCost(consumptions);
+  const cost = serviceCost + inventoryCost;
   const profit = revenue - cost;
   const fillRate = capacity
     ? Math.min(100, Math.round((registered / capacity) * 100))
@@ -1230,6 +1293,9 @@ function courseMetrics(course) {
     leads,
     payments,
     expenses,
+    consumptions,
+    serviceCost,
+    inventoryCost,
     capacity,
     registered,
     remaining,
@@ -1776,8 +1842,24 @@ function renderFinance() {
   const revenue =
     sumAmount(payments);
 
-  const expense =
+  const generalExpense =
     sumAmount(state.expenses);
+
+  const inventoryConsumedCost =
+    sumConsumptionCost(
+      state.consumptions
+    );
+
+  const expense =
+    generalExpense +
+    inventoryConsumedCost;
+
+  const purchaseSpend =
+    state.purchases.reduce(
+      (sum, p) =>
+        sum + Number(p.total_amount || 0),
+      0
+    );
 
   const profit =
     revenue - expense;
@@ -1893,6 +1975,64 @@ function renderFinance() {
 
     </div>
 
+
+    <div class="panel" style="margin-top:14px">
+
+      <div class="panel-head">
+
+        <div>
+          <h3>ساختار هزینه آکادمی</h3>
+          <p>
+            خرید انبار هنگام خرید «موجودی» است؛ هزینه دوره زمانی شناسایی می‌شود که کالا برای یک دوره مصرف شود.
+          </p>
+        </div>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+
+          <button
+            class="secondary glass-button"
+            data-action="newExpense"
+          >
+            ＋ هزینه عمومی
+          </button>
+
+          <button
+            class="primary"
+            data-action="newPurchase"
+          >
+            ＋ فاکتور خرید کالا
+          </button>
+
+        </div>
+
+      </div>
+
+      <div class="finance-strip">
+
+        <div>
+          <span>هزینه عمومی / خدمات</span>
+          <strong>
+            ${money(generalExpense)}
+          </strong>
+        </div>
+
+        <div>
+          <span>کالای مصرف‌شده در دوره‌ها</span>
+          <strong>
+            ${money(inventoryConsumedCost)}
+          </strong>
+        </div>
+
+        <div>
+          <span>خرید انبار</span>
+          <strong>
+            ${money(purchaseSpend)}
+          </strong>
+        </div>
+
+      </div>
+
+    </div>
 
     <div class="kpi-grid" style="margin-top:14px">
 
@@ -2262,6 +2402,1158 @@ function renderFinance() {
               btn.dataset.financeCourse
             )
     );
+}
+
+
+/* =========================================================
+   INVENTORY / PURCHASES / COURSE CONSUMPTION
+========================================================= */
+
+function inventoryProductStock(productId) {
+  return state.purchaseItems
+    .filter(
+      item =>
+        String(item.product_id) ===
+        String(productId)
+    )
+    .reduce(
+      (sum, item) =>
+        sum +
+        Number(
+          item.remaining_qty ?? item.quantity ?? 0
+        ),
+      0
+    );
+}
+
+function inventoryProductValue(productId) {
+  return state.purchaseItems
+    .filter(
+      item =>
+        String(item.product_id) ===
+        String(productId)
+    )
+    .reduce(
+      (sum, item) =>
+        sum +
+        Number(item.remaining_qty ?? 0) *
+        Number(item.unit_price ?? 0),
+      0
+    );
+}
+
+function inventoryTotals() {
+  const stockValue =
+    state.purchaseItems.reduce(
+      (sum, item) =>
+        sum +
+        Number(item.remaining_qty ?? 0) *
+        Number(item.unit_price ?? 0),
+      0
+    );
+
+  const purchaseValue =
+    state.purchases.reduce(
+      (sum, p) =>
+        sum + Number(p.total_amount || 0),
+      0
+    );
+
+  const consumedValue =
+    sumConsumptionCost(
+      state.consumptions
+    );
+
+  const lowStock =
+    state.products.filter(p => {
+      const min =
+        Number(p.min_stock || 0);
+      if (!min) return false;
+      return (
+        inventoryProductStock(p.product_id) <=
+        min
+      );
+    }).length;
+
+  return {
+    stockValue,
+    purchaseValue,
+    consumedValue,
+    lowStock
+  };
+}
+
+
+function renderInventory() {
+
+  title(
+    "انبار و مصرف دوره‌ها",
+    "خرید کالا، موجودی و تخصیص هزینه واقعی به هر دوره"
+  );
+
+  const t =
+    inventoryTotals();
+
+  $("#content").innerHTML = `
+
+    <section class="hero">
+
+      <div>
+        <span class="eyebrow">
+          INVENTORY & COST ALLOCATION
+        </span>
+
+        <h1>
+          انبار آکادمی
+        </h1>
+
+        <p>
+          کالا را خریداری کنید، موجودی را ببینید و مصرف واقعی هر دوره را ثبت کنید.
+        </p>
+      </div>
+
+      <button
+        class="hero-add"
+        data-action="newPurchase"
+      >
+        ＋ فاکتور خرید
+      </button>
+
+    </section>
+
+
+    <div class="kpi-grid">
+
+      <div class="kpi">
+        <span>اقلام تعریف‌شده</span>
+        <strong>
+          ${faNum(state.products.length)}
+        </strong>
+        <small>SKU / کالا</small>
+      </div>
+
+      <div class="kpi success">
+        <span>ارزش موجودی</span>
+        <strong>
+          ${money(t.stockValue)}
+        </strong>
+        <small>موجودی مصرف‌نشده</small>
+      </div>
+
+      <div class="kpi warning">
+        <span>مصرف ثبت‌شده</span>
+        <strong>
+          ${money(t.consumedValue)}
+        </strong>
+        <small>هزینه تخصیص‌یافته به دوره‌ها</small>
+      </div>
+
+      <div class="kpi danger">
+        <span>موجودی کم</span>
+        <strong>
+          ${faNum(t.lowStock)}
+        </strong>
+        <small>نیازمند خرید</small>
+      </div>
+
+    </div>
+
+
+    <div
+      class="toolbar"
+      style="margin-top:18px"
+    >
+
+      <div>
+        <h3>موجودی کالا</h3>
+        <p>
+          موجودی از فاکتورهای خرید منهای مصرف دوره‌ها محاسبه می‌شود.
+        </p>
+      </div>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+
+        <button
+          class="secondary glass-button"
+          data-action="newProduct"
+        >
+          ＋ تعریف کالا
+        </button>
+
+        <button
+          class="secondary glass-button"
+          data-action="newConsumption"
+        >
+          ثبت مصرف دوره
+        </button>
+
+        <button
+          class="primary"
+          data-action="newPurchase"
+        >
+          ＋ فاکتور خرید
+        </button>
+
+      </div>
+
+    </div>
+
+
+    <section class="panel">
+
+      ${
+        state.products.length
+          ? `
+            <div
+              style="
+                overflow:auto;
+                width:100%;
+              "
+            >
+              <table
+                style="
+                  width:100%;
+                  min-width:780px;
+                  border-collapse:collapse;
+                "
+              >
+
+                <thead>
+                  <tr>
+                    <th style="padding:12px;text-align:right">
+                      کالا
+                    </th>
+                    <th style="padding:12px;text-align:right">
+                      کد
+                    </th>
+                    <th style="padding:12px;text-align:right">
+                      واحد
+                    </th>
+                    <th style="padding:12px;text-align:right">
+                      موجودی
+                    </th>
+                    <th style="padding:12px;text-align:right">
+                      حداقل موجودی
+                    </th>
+                    <th style="padding:12px;text-align:right">
+                      ارزش موجودی
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+
+                  ${
+                    state.products.map(p => {
+
+                      const stock =
+                        inventoryProductStock(
+                          p.product_id
+                        );
+
+                      const min =
+                        Number(
+                          p.min_stock || 0
+                        );
+
+                      const low =
+                        min > 0 &&
+                        stock <= min;
+
+                      return `
+                        <tr
+                          style="
+                            border-top:
+                            1px solid
+                            rgba(255,255,255,.08)
+                          "
+                        >
+                          <td style="padding:12px">
+                            <b>
+                              ${esc(
+                                p.product_name ||
+                                "بدون نام"
+                              )}
+                            </b>
+                            <div
+                              style="
+                                font-size:10px;
+                                opacity:.6;
+                                margin-top:3px
+                              "
+                            >
+                              ${esc(
+                                p.category || ""
+                              )}
+                            </div>
+                          </td>
+
+                          <td style="padding:12px">
+                            ${esc(p.sku || "—")}
+                          </td>
+
+                          <td style="padding:12px">
+                            ${esc(p.unit || "عدد")}
+                          </td>
+
+                          <td style="padding:12px">
+                            <span
+                              class="badge ${
+                                low
+                                  ? "red"
+                                  : "green"
+                              }"
+                            >
+                              ${faNum(stock)}
+                            </span>
+                          </td>
+
+                          <td style="padding:12px">
+                            ${faNum(min)}
+                          </td>
+
+                          <td style="padding:12px">
+                            <b>
+                              ${money(
+                                inventoryProductValue(
+                                  p.product_id
+                                )
+                              )}
+                            </b>
+                          </td>
+                        </tr>
+                      `;
+                    }).join("")
+                  }
+
+                </tbody>
+
+              </table>
+            </div>
+          `
+          : `
+            <div class="empty">
+              <b>هنوز کالایی تعریف نشده</b>
+              <span>
+                ابتدا یک کالا تعریف کنید، سپس فاکتور خرید را ثبت کنید.
+              </span>
+            </div>
+          `
+      }
+
+    </section>
+
+
+    <div class="two-col">
+
+      <section class="panel">
+
+        <div class="panel-head">
+          <div>
+            <h3>آخرین فاکتورهای خرید</h3>
+            <p>
+              خریدهای ورودی به انبار
+            </p>
+          </div>
+          <span class="count">
+            ${faNum(state.purchases.length)}
+          </span>
+        </div>
+
+        ${
+          state.purchases.length
+            ? `
+              <div class="lead-list">
+                ${
+                  state.purchases
+                    .slice()
+                    .reverse()
+                    .slice(0,10)
+                    .map(p => `
+                      <div
+                        class="lead-row"
+                        style="cursor:default"
+                      >
+                        <div class="avatar">
+                          +
+                        </div>
+
+                        <div class="lead-main">
+                          <b>
+                            ${esc(
+                              p.supplier ||
+                              "فاکتور خرید"
+                            )}
+                          </b>
+                          <span>
+                            ${
+                              esc(
+                                p.invoice_no ||
+                                "بدون شماره"
+                              )
+                            }
+                            ·
+                            ${dateFa(
+                              p.purchase_date ||
+                              p.created_at
+                            )}
+                          </span>
+                        </div>
+
+                        <div class="lead-end">
+                          <b>
+                            ${money(
+                              p.total_amount
+                            )}
+                          </b>
+                          <small>
+                            ${esc(p.purchase_id)}
+                          </small>
+                        </div>
+                      </div>
+                    `)
+                    .join("")
+                }
+              </div>
+            `
+            : `
+              <div class="empty">
+                <b>فاکتور خریدی ثبت نشده</b>
+                <span>
+                  اولین فاکتور خرید انبار را ثبت کنید.
+                </span>
+              </div>
+            `
+        }
+
+      </section>
+
+
+      <section class="panel">
+
+        <div class="panel-head">
+          <div>
+            <h3>مصرف دوره‌ها</h3>
+            <p>
+              هزینه کالای مصرف‌شده در هر دوره
+            </p>
+          </div>
+          <span class="count">
+            ${faNum(state.consumptions.length)}
+          </span>
+        </div>
+
+        ${
+          state.consumptions.length
+            ? `
+              <div class="lead-list">
+                ${
+                  state.consumptions
+                    .slice()
+                    .reverse()
+                    .slice(0,12)
+                    .map(c => {
+
+                      const product =
+                        state.products.find(
+                          p =>
+                            String(p.product_id) ===
+                            String(c.product_id)
+                        );
+
+                      return `
+                        <div
+                          class="lead-row"
+                          style="cursor:default"
+                        >
+                          <div class="avatar">
+                            −
+                          </div>
+
+                          <div class="lead-main">
+                            <b>
+                              ${esc(
+                                product?.product_name ||
+                                c.product_name ||
+                                "کالا"
+                              )}
+                            </b>
+                            <span>
+                              ${esc(
+                                courseName(
+                                  c.course_id
+                                ) ||
+                                "بدون دوره"
+                              )}
+                              ·
+                              ${faNum(c.quantity)}
+                              ${esc(c.unit || "")}
+                            </span>
+                          </div>
+
+                          <div class="lead-end">
+                            <b>
+                              ${money(
+                                c.total_cost
+                              )}
+                            </b>
+                            <small>
+                              ${dateFa(
+                                c.created_at
+                              )}
+                            </small>
+                          </div>
+                        </div>
+                      `;
+                    })
+                    .join("")
+                }
+              </div>
+            `
+            : `
+              <div class="empty">
+                <b>مصرفی ثبت نشده</b>
+                <span>
+                  مصرف هر دوره را از موجودی انبار ثبت کنید.
+                </span>
+              </div>
+            `
+        }
+
+      </section>
+
+    </div>
+  `;
+
+  bindActions();
+}
+
+
+function newProduct() {
+
+  modal(`
+
+    <div class="modal-title">
+      <span>PRODUCT</span>
+      <h2>تعریف کالا</h2>
+      <p>
+        کالاهای مصرفی، تجهیزات کوچک، مواد آموزشی و اقلام موردنیاز دوره‌ها.
+      </p>
+    </div>
+
+    <form
+      id="productForm"
+      class="form-grid"
+    >
+
+      ${formField(
+        "نام کالا",
+        "product_name"
+      )}
+
+      ${formField(
+        "کد / SKU",
+        "sku"
+      )}
+
+      ${formField(
+        "واحد",
+        "unit",
+        "text",
+        'placeholder="عدد، بسته، جفت، متر..."'
+      )}
+
+      ${formField(
+        "دسته‌بندی",
+        "category"
+      )}
+
+      ${formField(
+        "حداقل موجودی",
+        "min_stock",
+        "number"
+      )}
+
+      <label class="field full">
+        <span>توضیحات</span>
+        <textarea
+          name="notes"
+          rows="3"
+        ></textarea>
+      </label>
+
+      <button
+        class="primary full submit"
+        type="submit"
+      >
+        ذخیره کالا
+      </button>
+
+    </form>
+  `);
+
+  $("#productForm").onsubmit =
+    async e => {
+
+      e.preventDefault();
+
+      await submitPost(
+        "createProduct",
+        formDataObject(e.target),
+        "کالا تعریف شد"
+      );
+    };
+}
+
+
+function purchaseLineHtml(index) {
+
+  return `
+    <div
+      class="panel purchase-line"
+      data-purchase-line="${index}"
+      style="
+        margin-bottom:10px;
+        padding:14px;
+      "
+    >
+
+      <div
+        style="
+          display:flex;
+          justify-content:space-between;
+          align-items:center;
+          gap:10px;
+          margin-bottom:12px;
+        "
+      >
+        <b>
+          ردیف ${faNum(index + 1)}
+        </b>
+
+        <button
+          type="button"
+          class="danger-action remove-purchase-line"
+          style="padding:7px 10px"
+        >
+          حذف ردیف
+        </button>
+      </div>
+
+      <div class="form-grid">
+
+        ${selectField(
+          "کالا",
+          `product_id_${index}`,
+          `
+            <option value="">
+              انتخاب کالا
+            </option>
+
+            ${
+              state.products.map(p => `
+                <option
+                  value="${esc(p.product_id)}"
+                >
+                  ${esc(p.product_name)}
+                  ${
+                    p.unit
+                      ? " — " + esc(p.unit)
+                      : ""
+                  }
+                </option>
+              `).join("")
+            }
+          `
+        )}
+
+        ${formField(
+          "تعداد",
+          `quantity_${index}`,
+          "number"
+        )}
+
+        ${formField(
+          "قیمت واحد",
+          `unit_price_${index}`,
+          "number"
+        )}
+
+        <div class="field">
+          <span>مبلغ ردیف</span>
+          <div
+            class="purchase-line-total"
+            style="
+              min-height:45px;
+              display:flex;
+              align-items:center;
+              padding:12px;
+              border-radius:15px;
+              background:rgba(255,255,255,.07);
+              border:1px solid rgba(255,255,255,.12);
+              font-weight:700;
+            "
+          >
+            ۰ تومان
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  `;
+}
+
+
+function newPurchase() {
+
+  if (!state.products.length) {
+    toast(
+      "ابتدا حداقل یک کالا تعریف کنید.",
+      true
+    );
+    newProduct();
+    return;
+  }
+
+  modal(`
+
+    <div class="modal-title">
+      <span>PURCHASE INVOICE</span>
+      <h2>ثبت فاکتور خرید انبار</h2>
+      <p>
+        یک فاکتور می‌تواند شامل چند کالای مختلف با تعداد و قیمت متفاوت باشد.
+      </p>
+    </div>
+
+    <form
+      id="purchaseForm"
+    >
+
+      <div class="form-grid">
+
+        ${formField(
+          "فروشنده",
+          "supplier"
+        )}
+
+        ${formField(
+          "شماره فاکتور",
+          "invoice_no"
+        )}
+
+        ${formField(
+          "تاریخ خرید",
+          "purchase_date",
+          "date"
+        )}
+
+        <label class="field">
+          <span>توضیحات</span>
+          <input
+            name="notes"
+            type="text"
+          >
+        </label>
+
+      </div>
+
+      <div
+        style="
+          display:flex;
+          justify-content:space-between;
+          align-items:center;
+          margin:20px 0 10px;
+        "
+      >
+        <div>
+          <h3 style="margin:0">
+            اقلام فاکتور
+          </h3>
+          <small style="opacity:.6">
+            برای هر محصول تعداد و قیمت واحد را وارد کنید.
+          </small>
+        </div>
+
+        <button
+          id="addPurchaseLine"
+          type="button"
+          class="secondary glass-button"
+        >
+          ＋ ردیف جدید
+        </button>
+      </div>
+
+      <div id="purchaseLines"></div>
+
+      <div
+        class="panel"
+        style="
+          display:flex;
+          justify-content:space-between;
+          align-items:center;
+          margin:12px 0;
+        "
+      >
+        <span>
+          مبلغ کل فاکتور
+        </span>
+
+        <strong
+          id="purchaseGrandTotal"
+          style="font-size:20px"
+        >
+          ۰ تومان
+        </strong>
+      </div>
+
+      <button
+        class="primary full submit"
+        type="submit"
+        style="width:100%"
+      >
+        ثبت فاکتور و افزایش موجودی
+      </button>
+
+    </form>
+  `);
+
+  let lineCounter = 0;
+
+  const lines =
+    $("#purchaseLines");
+
+  function addLine() {
+
+    lines.insertAdjacentHTML(
+      "beforeend",
+      purchaseLineHtml(
+        lineCounter
+      )
+    );
+
+    lineCounter++;
+
+    bindNumberInputs(lines);
+
+    bindPurchaseLines();
+  }
+
+  function bindPurchaseLines() {
+
+    $$(".remove-purchase-line")
+      .forEach(btn => {
+
+        btn.onclick = () => {
+
+          const line =
+            btn.closest(
+              ".purchase-line"
+            );
+
+          line?.remove();
+
+          updatePurchaseTotals();
+        };
+      });
+
+    $$(".purchase-line input")
+      .forEach(input => {
+
+        input.addEventListener(
+          "input",
+          updatePurchaseTotals
+        );
+      });
+  }
+
+  function updatePurchaseTotals() {
+
+    let grand = 0;
+
+    $$(".purchase-line")
+      .forEach(line => {
+
+        const index =
+          line.dataset.purchaseLine;
+
+        const qty =
+          Number(
+            rawNumber(
+              line.querySelector(
+                `[name="quantity_${index}"]`
+              )?.value
+            ) || 0
+          );
+
+        const price =
+          Number(
+            rawNumber(
+              line.querySelector(
+                `[name="unit_price_${index}"]`
+              )?.value
+            ) || 0
+          );
+
+        const total =
+          qty * price;
+
+        grand += total;
+
+        const totalEl =
+          line.querySelector(
+            ".purchase-line-total"
+          );
+
+        if (totalEl) {
+          totalEl.textContent =
+            money(total);
+        }
+      });
+
+    $("#purchaseGrandTotal")
+      .textContent =
+        money(grand);
+  }
+
+  $("#addPurchaseLine").onclick =
+    addLine;
+
+  addLine();
+
+  $("#purchaseForm").onsubmit =
+    async e => {
+
+      e.preventDefault();
+
+      const base =
+        formDataObject(e.target);
+
+      const items = [];
+
+      $$(".purchase-line")
+        .forEach(line => {
+
+          const index =
+            line.dataset.purchaseLine;
+
+          const productId =
+            line.querySelector(
+              `[name="product_id_${index}"]`
+            )?.value || "";
+
+          const quantity =
+            Number(
+              rawNumber(
+                line.querySelector(
+                  `[name="quantity_${index}"]`
+                )?.value
+              ) || 0
+            );
+
+          const unitPrice =
+            Number(
+              rawNumber(
+                line.querySelector(
+                  `[name="unit_price_${index}"]`
+                )?.value
+              ) || 0
+            );
+
+          if (
+            productId ||
+            quantity ||
+            unitPrice
+          ) {
+            items.push({
+              product_id:productId,
+              quantity,
+              unit_price:unitPrice
+            });
+          }
+        });
+
+      if (!items.length) {
+        toast(
+          "حداقل یک ردیف کالا وارد کنید.",
+          true
+        );
+        return;
+      }
+
+      await submitPost(
+        "createPurchase",
+        {
+          supplier:
+            base.supplier || "",
+          invoice_no:
+            base.invoice_no || "",
+          purchase_date:
+            base.purchase_date || "",
+          notes:
+            base.notes || "",
+          items
+        },
+        "فاکتور خرید ثبت شد و موجودی افزایش یافت"
+      );
+    };
+}
+
+
+function newConsumption() {
+
+  if (!state.products.length) {
+    toast(
+      "کالایی برای مصرف تعریف نشده است.",
+      true
+    );
+    return;
+  }
+
+  modal(`
+
+    <div class="modal-title">
+      <span>COURSE CONSUMPTION</span>
+      <h2>ثبت مصرف دوره</h2>
+      <p>
+        مقدار مصرف‌شده از موجودی انبار کم و هزینه واقعی آن به دوره تخصیص داده می‌شود.
+      </p>
+    </div>
+
+    <form
+      id="consumptionForm"
+      class="form-grid"
+    >
+
+      ${selectField(
+        "دوره",
+        "course_id",
+        `
+          <option value="">
+            انتخاب دوره
+          </option>
+
+          ${
+            state.courses.map(c => `
+              <option
+                value="${esc(c.course_id)}"
+              >
+                ${esc(c.course_name)}
+              </option>
+            `).join("")
+          }
+        `
+      )}
+
+      ${selectField(
+        "کالا",
+        "product_id",
+        `
+          <option value="">
+            انتخاب کالا
+          </option>
+
+          ${
+            state.products.map(p => {
+
+              const stock =
+                inventoryProductStock(
+                  p.product_id
+                );
+
+              return `
+                <option
+                  value="${esc(p.product_id)}"
+                >
+                  ${esc(p.product_name)}
+                  — موجودی:
+                  ${faNum(stock)}
+                  ${esc(p.unit || "")}
+                </option>
+              `;
+            }).join("")
+          }
+        `
+      )}
+
+      ${formField(
+        "تعداد مصرف",
+        "quantity",
+        "number"
+      )}
+
+      ${formField(
+        "تاریخ مصرف",
+        "consumption_date",
+        "date"
+      )}
+
+      <label class="field full">
+        <span>توضیحات</span>
+        <textarea
+          name="notes"
+          rows="3"
+        ></textarea>
+      </label>
+
+      <button
+        class="primary full submit"
+        type="submit"
+      >
+        ثبت مصرف و تخصیص هزینه به دوره
+      </button>
+
+    </form>
+  `);
+
+  $("#consumptionForm").onsubmit =
+    async e => {
+
+      e.preventDefault();
+
+      const data =
+        formDataObject(e.target);
+
+      const qty =
+        Number(
+          rawNumber(
+            data.quantity
+          ) || 0
+        );
+
+      if (
+        !data.product_id ||
+        qty <= 0
+      ) {
+        toast(
+          "کالا و تعداد مصرف را وارد کنید.",
+          true
+        );
+        return;
+      }
+
+      const stock =
+        inventoryProductStock(
+          data.product_id
+        );
+
+      if (qty > stock) {
+        toast(
+          `موجودی کافی نیست. موجودی فعلی ${faNum(stock)} است.`,
+          true
+        );
+        return;
+      }
+
+      await submitPost(
+        "createConsumption",
+        {
+          ...data,
+          quantity:qty
+        },
+        "مصرف دوره ثبت شد و موجودی بروزرسانی شد"
+      );
+    };
 }
 
 
@@ -3034,7 +4326,12 @@ function renderReports() {
 
   const payments = approvedPayments();
   const revenue = sumAmount(payments);
-  const expense = sumAmount(state.expenses);
+  const generalExpense = sumAmount(state.expenses);
+  const inventoryConsumedCost =
+    sumConsumptionCost(state.consumptions);
+  const expense =
+    generalExpense +
+    inventoryConsumedCost;
   const profit = revenue - expense;
   const margin = revenue ? Math.round((profit / revenue) * 100) : 0;
 
@@ -3240,6 +4537,15 @@ function openAction(action) {
 
   if (action === "newPayment")
     return newPayment();
+
+  if (action === "newProduct")
+    return newProduct();
+
+  if (action === "newPurchase")
+    return newPurchase();
+
+  if (action === "newConsumption")
+    return newConsumption();
 }
 
 
