@@ -776,6 +776,63 @@ async function loadAll(
       []
     );
 
+    /*
+      Inventory fallback:
+      if one of the individual inventory GET requests fails,
+      fetch the inventory dataset in one bundled request.
+    */
+    if (!state.products.length) {
+
+      try {
+
+        const bundle =
+          await get("inventoryBundle");
+
+        if (
+          bundle?.success &&
+          bundle?.data
+        ) {
+
+          state.products =
+            bundle.data.products || [];
+
+          state.purchases =
+            bundle.data.purchases ||
+            state.purchases ||
+            [];
+
+          state.purchaseItems =
+            bundle.data.purchaseItems ||
+            state.purchaseItems ||
+            [];
+
+          state.purchaseCosts =
+            bundle.data.purchaseCosts ||
+            state.purchaseCosts ||
+            [];
+
+          state.consumptions =
+            bundle.data.consumptions ||
+            state.consumptions ||
+            [];
+
+          state.inventoryMovements =
+            bundle.data.inventoryMovements ||
+            state.inventoryMovements ||
+            [];
+
+          anySuccess = true;
+        }
+
+      } catch (inventoryError) {
+
+        console.warn(
+          "Inventory bundle fallback failed:",
+          inventoryError
+        );
+      }
+    }
+
     setConnected(anySuccess);
 
     render();
@@ -4018,6 +4075,58 @@ function inventoryTotals() {
 }
 
 
+
+async function refreshInventoryData() {
+
+  try {
+
+    const bundle =
+      await get(
+        "inventoryBundle"
+      );
+
+    if (
+      !bundle?.success ||
+      !bundle?.data
+    ) {
+      throw new Error(
+        bundle?.message ||
+        "اطلاعات انبار دریافت نشد."
+      );
+    }
+
+    state.products =
+      bundle.data.products || [];
+
+    state.purchases =
+      bundle.data.purchases || [];
+
+    state.purchaseItems =
+      bundle.data.purchaseItems || [];
+
+    state.purchaseCosts =
+      bundle.data.purchaseCosts || [];
+
+    state.consumptions =
+      bundle.data.consumptions || [];
+
+    state.inventoryMovements =
+      bundle.data.inventoryMovements || [];
+
+    return true;
+
+  } catch (error) {
+
+    console.error(
+      "refreshInventoryData:",
+      error
+    );
+
+    return false;
+  }
+}
+
+
 function renderInventory() {
 
   title(
@@ -4898,18 +5007,98 @@ function newProduct() {
     </form>
   `);
 
+
   $("#productForm").onsubmit =
     async e => {
 
       e.preventDefault();
 
-      await submitPost(
-        "createProduct",
-        formDataObject(e.target),
-        "کالا تعریف شد"
-      );
+      const button =
+        e.target.querySelector(
+          ".submit"
+        );
+
+      if (button) {
+        button.disabled = true;
+        button.textContent =
+          "در حال ثبت...";
+      }
+
+      try {
+
+        const result =
+          await post(
+            "createProduct",
+            formDataObject(
+              e.target
+            )
+          );
+
+        if (!result?.success) {
+          throw new Error(
+            result?.message ||
+            "کالا ثبت نشد."
+          );
+        }
+
+        /*
+          Important:
+          Use the product returned by the backend immediately.
+          This prevents the newly-created item disappearing
+          while a Google Sheets GET refresh is still pending.
+        */
+        if (result.data) {
+
+          state.products =
+            [
+              ...state.products.filter(
+                x =>
+                  String(x.product_id) !==
+                  String(
+                    result.data.product_id
+                  )
+              ),
+              result.data
+            ];
+        }
+
+        closeModal();
+
+        toast(
+          "کالا تعریف شد"
+        );
+
+        render();
+
+        /*
+          Then reconcile all inventory data from Sheets.
+          Even if this refresh temporarily fails,
+          the newly-created product remains available locally.
+        */
+        await refreshInventoryData();
+
+        render();
+
+      } catch (error) {
+
+        console.error(error);
+
+        toast(
+          error.message ||
+          "کالا ثبت نشد.",
+          true
+        );
+
+        if (button) {
+          button.disabled = false;
+          button.textContent =
+            "تلاش مجدد";
+        }
+      }
     };
 }
+
+
 
 
 function purchaseLineHtml(index) {
@@ -5057,14 +5246,30 @@ function ancillaryCostLineHtml(index) {
 }
 
 
-function newPurchase() {
+async function newPurchase() {
+
+  /*
+    Never trust only the local state here.
+    Re-read inventory first when the product list looks empty.
+  */
+  if (!state.products.length) {
+
+    toast(
+      "در حال دریافت لیست کالاها..."
+    );
+
+    await refreshInventoryData();
+  }
 
   if (!state.products.length) {
+
     toast(
-      "ابتدا حداقل یک کالا تعریف کنید.",
+      "هنوز کالایی در انبار تعریف نشده است.",
       true
     );
+
     newProduct();
+
     return;
   }
 
