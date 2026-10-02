@@ -6148,71 +6148,846 @@ ${selectField(
 
 function editPurchase(purchase) {
 
+  const originalItems =
+    state.purchaseItems.filter(
+      x =>
+        String(x.purchase_id) ===
+        String(purchase.purchase_id)
+    );
+
+  const originalCosts =
+    state.purchaseCosts.filter(
+      x =>
+        String(x.purchase_id) ===
+        String(purchase.purchase_id)
+    );
+
+
   modal(`
 
     <div class="modal-title">
       <span>PURCHASE</span>
-      <h2>ویرایش اطلاعات فاکتور خرید</h2>
+      <h2>ویرایش کامل فاکتور خرید</h2>
       <p>
-        برای حفظ صحت موجودی،
-        تعداد و قیمت ردیف‌های خرید
-        بعد از ثبت گردش انبار
-        از این صفحه تغییر نمی‌کنند.
+        اطلاعات فاکتور، کالاها، تعداد، قیمت و هزینه‌های جانبی قابل ویرایش هستند.
+        ردیف جدید هم می‌توانید اضافه کنید.
       </p>
     </div>
 
-    <form
-      id="editPurchaseForm"
-      class="form-grid"
-    >
 
-      ${formField(
-        "فروشنده",
-        "supplier",
-        "text",
-        "",
-        purchase.supplier || ""
-      )}
+    <form id="editPurchaseForm">
 
-      ${formField(
-        "شماره فاکتور",
-        "invoice_no",
-        "text",
-        "",
-        purchase.invoice_no || ""
-      )}
+      <div class="form-grid">
 
-      ${formField(
-        "تاریخ خرید",
-        "purchase_date",
-        "date",
-        "",
-        purchase.purchase_date
-          ? String(
-              purchase.purchase_date
-            ).slice(0,10)
-          : ""
-      )}
+        ${formField(
+          "فروشنده",
+          "supplier",
+          "text",
+          "",
+          purchase.supplier || ""
+        )}
 
-      <label class="field full">
-        <span>توضیحات</span>
-        <textarea
-          name="notes"
-          rows="3"
-        >${esc(
-          purchase.notes || ""
-        )}</textarea>
-      </label>
+        ${formField(
+          "شماره فاکتور",
+          "invoice_no",
+          "text",
+          "",
+          purchase.invoice_no || ""
+        )}
+
+        ${formField(
+          "تاریخ خرید",
+          "purchase_date",
+          "date",
+          "",
+          purchase.purchase_date
+            ? String(
+                purchase.purchase_date
+              ).slice(0,10)
+            : ""
+        )}
+
+        <label class="field">
+          <span>توضیحات</span>
+          <input
+            name="notes"
+            type="text"
+            value="${esc(purchase.notes || "")}"
+          >
+        </label>
+
+      </div>
+
+
+      <div
+        style="
+          display:flex;
+          justify-content:space-between;
+          align-items:center;
+          margin:20px 0 10px;
+          gap:12px;
+        "
+      >
+        <div>
+          <h3 style="margin:0">
+            اقلام فاکتور
+          </h3>
+          <small style="opacity:.6">
+            همه ردیف‌ها قابل ویرایش هستند. ردیف جدید در بالای لیست اضافه می‌شود.
+          </small>
+        </div>
+
+        <button
+          id="editAddPurchaseLine"
+          type="button"
+          class="secondary glass-button"
+        >
+          ＋ ردیف کالا
+        </button>
+      </div>
+
+      <div id="editPurchaseLines"></div>
+
+
+      <div
+        style="
+          display:flex;
+          justify-content:space-between;
+          align-items:center;
+          margin:22px 0 10px;
+          gap:12px;
+        "
+      >
+        <div>
+          <h3 style="margin:0">
+            هزینه‌های جانبی
+          </h3>
+          <small style="opacity:.6">
+            ارسال، پیک، بسته‌بندی یا هر هزینه جانبی دیگر.
+          </small>
+        </div>
+
+        <button
+          id="editAddAncillaryCost"
+          type="button"
+          class="secondary glass-button"
+        >
+          ＋ هزینه جانبی
+        </button>
+      </div>
+
+      <div id="editAncillaryCostLines"></div>
+
+
+      <section
+        class="panel"
+        style="
+          margin:14px 0;
+          display:grid;
+          grid-template-columns:repeat(3,1fr);
+          gap:10px;
+        "
+      >
+        <div>
+          <span style="display:block;opacity:.65;font-size:10px">
+            جمع کالاها
+          </span>
+          <strong id="editPurchaseGoodsTotal" style="font-size:18px">
+            ۰ تومان
+          </strong>
+        </div>
+
+        <div>
+          <span style="display:block;opacity:.65;font-size:10px">
+            هزینه‌های جانبی
+          </span>
+          <strong id="editPurchaseAncillaryTotal" style="font-size:18px">
+            ۰ تومان
+          </strong>
+        </div>
+
+        <div>
+          <span style="display:block;opacity:.65;font-size:10px">
+            بهای تمام‌شده
+          </span>
+          <strong id="editPurchaseGrandTotal" style="font-size:20px">
+            ۰ تومان
+          </strong>
+        </div>
+      </section>
+
+
+      <div
+        class="panel"
+        style="
+          margin:12px 0;
+          padding:13px;
+          font-size:10px;
+          line-height:1.9;
+        "
+      >
+        اگر یک ردیف قبلاً در دوره‌ای مصرف شده باشد، سیستم اجازه نمی‌دهد
+        تعداد آن را کمتر از مقدار مصرف‌شده کنید یا محصول آن ردیف را تغییر دهید.
+        قیمت و هزینه‌های جانبی قابل اصلاح هستند و هزینه مصرف‌های قبلی هم باز محاسبه می‌شود.
+      </div>
+
 
       <button
         class="primary full submit"
         type="submit"
+        style="width:100%"
       >
-        ذخیره تغییرات
+        ذخیره کامل تغییرات فاکتور
       </button>
 
     </form>
   `);
+
+
+  const lines =
+    $("#editPurchaseLines");
+
+  const costs =
+    $("#editAncillaryCostLines");
+
+  let lineCounter = 0;
+  let costCounter = 0;
+
+
+  function lineHtml(
+    index,
+    item = null
+  ) {
+
+    const factor =
+      Number(
+        item?.units_per_purchase ||
+        1
+      ) || 1;
+
+    const purchaseQty =
+      item
+        ? (
+            Number(
+              item.purchase_quantity
+            ) ||
+            (
+              Number(
+                item.quantity || 0
+              ) /
+              factor
+            )
+          )
+        : "";
+
+    const purchasePrice =
+      item
+        ? (
+            Number(
+              item.purchase_unit_price
+            ) ||
+            (
+              purchaseQty
+                ? Number(
+                    item.line_total || 0
+                  ) /
+                  purchaseQty
+                : 0
+            )
+          )
+        : "";
+
+    return `
+      <div
+        class="panel edit-purchase-line"
+        data-edit-line="${index}"
+        data-purchase-item-id="${esc(
+          item?.purchase_item_id || ""
+        )}"
+        style="
+          margin-bottom:10px;
+          padding:14px;
+        "
+      >
+
+        <div
+          style="
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            margin-bottom:12px;
+            gap:8px;
+          "
+        >
+          <b>
+            ${item ? "ردیف ثبت‌شده" : "ردیف جدید"}
+          </b>
+
+          <button
+            type="button"
+            class="danger-action edit-remove-purchase-line"
+          >
+            حذف ردیف
+          </button>
+        </div>
+
+
+        <div class="form-grid">
+
+          <label class="field">
+            <span>کالا</span>
+
+            <select
+              class="edit-purchase-product"
+              name="edit_product_id_${index}"
+            >
+              <option value="">
+                انتخاب کالا
+              </option>
+
+              ${
+                activeProducts()
+                  .map(p => `
+                    <option
+                      value="${esc(p.product_id)}"
+                      ${
+                        String(p.product_id) ===
+                        String(item?.product_id || "")
+                          ? "selected"
+                          : ""
+                      }
+                    >
+                      ${esc(p.product_name)}
+                    </option>
+                  `)
+                  .join("")
+              }
+            </select>
+          </label>
+
+
+          <label class="field">
+            <span class="edit-purchase-qty-label">
+              تعداد واحد خرید
+            </span>
+
+            <input
+              name="edit_purchase_quantity_${index}"
+              type="text"
+              data-number="true"
+              inputmode="numeric"
+              value="${esc(purchaseQty)}"
+            >
+          </label>
+
+
+          <label class="field">
+            <span class="edit-purchase-price-label">
+              قیمت هر واحد خرید
+            </span>
+
+            <input
+              name="edit_purchase_unit_price_${index}"
+              type="text"
+              data-number="true"
+              inputmode="numeric"
+              value="${esc(purchasePrice)}"
+            >
+          </label>
+
+
+          <div class="field">
+            <span>مبلغ ردیف</span>
+
+            <div
+              class="edit-purchase-line-total"
+              style="
+                min-height:45px;
+                display:flex;
+                align-items:center;
+                padding:12px;
+                border-radius:15px;
+                background:rgba(255,255,255,.07);
+                border:1px solid rgba(255,255,255,.12);
+                font-weight:700;
+              "
+            >
+              ۰ تومان
+            </div>
+          </div>
+
+        </div>
+
+
+        <div
+          class="edit-purchase-conversion-preview"
+          style="
+            margin-top:10px;
+            padding:10px 12px;
+            border-radius:14px;
+            background:rgba(255,255,255,.05);
+            border:1px solid rgba(255,255,255,.1);
+            font-size:10px;
+            line-height:1.8;
+          "
+        ></div>
+
+      </div>
+    `;
+  }
+
+
+  function costHtml(
+    index,
+    item = null
+  ) {
+
+    return `
+      <div
+        class="panel edit-cost-line"
+        data-edit-cost="${index}"
+        style="
+          margin-bottom:8px;
+          padding:12px;
+        "
+      >
+        <div class="form-grid">
+
+          ${formField(
+            "عنوان هزینه",
+            `edit_cost_label_${index}`,
+            "text",
+            "",
+            item?.cost_label ||
+            "هزینه ارسال"
+          )}
+
+          ${formField(
+            "مبلغ",
+            `edit_cost_amount_${index}`,
+            "number",
+            "",
+            item?.amount || ""
+          )}
+
+          <button
+            type="button"
+            class="danger-action edit-remove-cost-line"
+            style="align-self:end;min-height:45px"
+          >
+            حذف
+          </button>
+
+        </div>
+      </div>
+    `;
+  }
+
+
+  function getProduct(
+    line
+  ) {
+
+    const id =
+      line.querySelector(
+        ".edit-purchase-product"
+      )?.value || "";
+
+    return state.products.find(
+      p =>
+        String(p.product_id) ===
+        String(id)
+    );
+  }
+
+
+  function updateLine(
+    line
+  ) {
+
+    const index =
+      line.dataset.editLine;
+
+    const product =
+      getProduct(line);
+
+    const qty =
+      Number(
+        rawNumber(
+          line.querySelector(
+            `[name="edit_purchase_quantity_${index}"]`
+          )?.value
+        ) || 0
+      );
+
+    const price =
+      Number(
+        rawNumber(
+          line.querySelector(
+            `[name="edit_purchase_unit_price_${index}"]`
+          )?.value
+        ) || 0
+      );
+
+    const factor =
+      Math.max(
+        1,
+        Number(
+          product?.units_per_purchase ||
+          1
+        )
+      );
+
+    const purchaseUnit =
+      product?.purchase_unit ||
+      product?.unit ||
+      "واحد";
+
+    const consumeUnit =
+      product?.unit ||
+      "عدد";
+
+    const qtyLabel =
+      line.querySelector(
+        ".edit-purchase-qty-label"
+      );
+
+    const priceLabel =
+      line.querySelector(
+        ".edit-purchase-price-label"
+      );
+
+    if (qtyLabel) {
+      qtyLabel.textContent =
+        `تعداد ${purchaseUnit} خریداری‌شده`;
+    }
+
+    if (priceLabel) {
+      priceLabel.textContent =
+        `قیمت هر ${purchaseUnit}`;
+    }
+
+    const total =
+      qty * price;
+
+    const totalEl =
+      line.querySelector(
+        ".edit-purchase-line-total"
+      );
+
+    if (totalEl) {
+      totalEl.textContent =
+        money(total);
+    }
+
+    const preview =
+      line.querySelector(
+        ".edit-purchase-conversion-preview"
+      );
+
+    if (preview) {
+
+      if (!product) {
+        preview.textContent =
+          "کالا را انتخاب کنید.";
+      } else {
+
+        const consumptionQty =
+          qty * factor;
+
+        const multi =
+          String(
+            product.usage_type ||
+            "single"
+          ) === "multi";
+
+        const uses =
+          Math.max(
+            1,
+            Number(
+              product.uses_per_unit ||
+              1
+            )
+          );
+
+        preview.innerHTML = `
+          هر
+          <b>${esc(purchaseUnit)}</b>
+          =
+          <b>${faNum(factor)} ${esc(consumeUnit)}</b>
+
+          ${
+            qty
+              ? `
+                <br>
+                موجودی حاصل:
+                <b>
+                  ${faNum(consumptionQty)}
+                  ${esc(consumeUnit)}
+                </b>
+              `
+              : ""
+          }
+
+          ${
+            multi && qty
+              ? `
+                <br>
+                ظرفیت استفاده:
+                <b>
+                  ${faNum(
+                    consumptionQty *
+                    uses
+                  )}
+                  بار
+                </b>
+              `
+              : ""
+          }
+        `;
+      }
+    }
+  }
+
+
+  function updateTotals() {
+
+    let goodsTotal = 0;
+
+    $$(".edit-purchase-line")
+      .forEach(line => {
+
+        const index =
+          line.dataset.editLine;
+
+        const qty =
+          Number(
+            rawNumber(
+              line.querySelector(
+                `[name="edit_purchase_quantity_${index}"]`
+              )?.value
+            ) || 0
+          );
+
+        const price =
+          Number(
+            rawNumber(
+              line.querySelector(
+                `[name="edit_purchase_unit_price_${index}"]`
+              )?.value
+            ) || 0
+          );
+
+        goodsTotal +=
+          qty *
+          price;
+
+        updateLine(line);
+      });
+
+
+    const ancillaryTotal =
+      $$(".edit-cost-line")
+        .reduce(
+          (sum,line) => {
+
+            const index =
+              line.dataset.editCost;
+
+            return (
+              sum +
+              Number(
+                rawNumber(
+                  line.querySelector(
+                    `[name="edit_cost_amount_${index}"]`
+                  )?.value
+                ) || 0
+              )
+            );
+          },
+          0
+        );
+
+
+    $("#editPurchaseGoodsTotal")
+      .textContent =
+        money(goodsTotal);
+
+    $("#editPurchaseAncillaryTotal")
+      .textContent =
+        money(ancillaryTotal);
+
+    $("#editPurchaseGrandTotal")
+      .textContent =
+        money(
+          goodsTotal +
+          ancillaryTotal
+        );
+  }
+
+
+  function bindRows() {
+
+    bindNumberInputs(
+      $("#editPurchaseForm")
+    );
+
+    $$(".edit-remove-purchase-line")
+      .forEach(btn => {
+
+        btn.onclick =
+          () => {
+
+            btn.closest(
+              ".edit-purchase-line"
+            )?.remove();
+
+            updateTotals();
+          };
+      });
+
+
+    $$(".edit-remove-cost-line")
+      .forEach(btn => {
+
+        btn.onclick =
+          () => {
+
+            btn.closest(
+              ".edit-cost-line"
+            )?.remove();
+
+            updateTotals();
+          };
+      });
+
+
+    $$(".edit-purchase-line")
+      .forEach(line => {
+
+        const select =
+          line.querySelector(
+            ".edit-purchase-product"
+          );
+
+        if (select) {
+          select.onchange =
+            () => {
+              updateLine(line);
+              updateTotals();
+            };
+        }
+
+        line.querySelectorAll(
+          "input"
+        ).forEach(input => {
+          input.oninput =
+            updateTotals;
+        });
+
+        updateLine(line);
+      });
+
+
+    $$(".edit-cost-line input")
+      .forEach(input => {
+        input.oninput =
+          updateTotals;
+      });
+  }
+
+
+  function addLine(
+    item = null,
+    prepend = true
+  ) {
+
+    const html =
+      lineHtml(
+        lineCounter,
+        item
+      );
+
+    lines.insertAdjacentHTML(
+      prepend
+        ? "afterbegin"
+        : "beforeend",
+      html
+    );
+
+    lineCounter++;
+
+    bindRows();
+
+    updateTotals();
+  }
+
+
+  function addCost(
+    item = null,
+    prepend = true
+  ) {
+
+    costs.insertAdjacentHTML(
+      prepend
+        ? "afterbegin"
+        : "beforeend",
+      costHtml(
+        costCounter,
+        item
+      )
+    );
+
+    costCounter++;
+
+    bindRows();
+
+    updateTotals();
+  }
+
+
+  originalItems
+    .forEach(
+      item =>
+        addLine(
+          item,
+          false
+        )
+    );
+
+  originalCosts
+    .forEach(
+      item =>
+        addCost(
+          item,
+          false
+        )
+    );
+
+  if (!originalItems.length) {
+    addLine(
+      null,
+      false
+    );
+  }
+
+
+  $("#editAddPurchaseLine")
+    .onclick =
+      () =>
+        addLine(
+          null,
+          true
+        );
+
+  $("#editAddAncillaryCost")
+    .onclick =
+      () =>
+        addCost(
+          null,
+          true
+        );
+
 
   $("#editPurchaseForm")
     .onsubmit =
@@ -6220,19 +6995,134 @@ function editPurchase(purchase) {
 
         e.preventDefault();
 
+        const base =
+          formDataObject(
+            e.target
+          );
+
+        const items = [];
+
+        $$(".edit-purchase-line")
+          .forEach(line => {
+
+            const index =
+              line.dataset.editLine;
+
+            const productId =
+              line.querySelector(
+                `.edit-purchase-product`
+              )?.value || "";
+
+            const purchaseQty =
+              Number(
+                rawNumber(
+                  line.querySelector(
+                    `[name="edit_purchase_quantity_${index}"]`
+                  )?.value
+                ) || 0
+              );
+
+            const purchasePrice =
+              Number(
+                rawNumber(
+                  line.querySelector(
+                    `[name="edit_purchase_unit_price_${index}"]`
+                  )?.value
+                ) || 0
+              );
+
+            if (
+              productId ||
+              purchaseQty ||
+              purchasePrice
+            ) {
+
+              items.push({
+                purchase_item_id:
+                  line.dataset
+                    .purchaseItemId ||
+                  "",
+                product_id:
+                  productId,
+                purchase_quantity:
+                  purchaseQty,
+                purchase_unit_price:
+                  purchasePrice
+              });
+            }
+          });
+
+
+        if (!items.length) {
+          toast(
+            "فاکتور باید حداقل یک ردیف کالا داشته باشد.",
+            true
+          );
+          return;
+        }
+
+
+        const extraCosts = [];
+
+        $$(".edit-cost-line")
+          .forEach(line => {
+
+            const index =
+              line.dataset.editCost;
+
+            const label =
+              line.querySelector(
+                `[name="edit_cost_label_${index}"]`
+              )?.value?.trim() ||
+              "هزینه جانبی";
+
+            const amount =
+              Number(
+                rawNumber(
+                  line.querySelector(
+                    `[name="edit_cost_amount_${index}"]`
+                  )?.value
+                ) || 0
+              );
+
+            if (
+              label ||
+              amount
+            ) {
+              extraCosts.push({
+                label,
+                amount
+              });
+            }
+          });
+
+
         await submitPost(
-          "updatePurchase",
+          "updatePurchaseFull",
           {
-            ...formDataObject(
-              e.target
-            ),
             purchase_id:
-              purchase.purchase_id
+              purchase.purchase_id,
+            supplier:
+              base.supplier || "",
+            invoice_no:
+              base.invoice_no || "",
+            purchase_date:
+              base.purchase_date || "",
+            notes:
+              base.notes || "",
+            items,
+            extra_costs:
+              extraCosts
           },
-          "فاکتور خرید ویرایش شد"
+          "فاکتور خرید و موجودی با موفقیت ویرایش شد"
         );
       };
+
+
+  updateTotals();
 }
+
+
 
 
 function editConsumption(item) {
