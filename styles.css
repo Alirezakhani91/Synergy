@@ -2995,3 +2995,36 @@ body{
     grid-template-columns:1fr;
   }
 }
+
+
+/* =========================================================
+   V12.1 — SINGLE UNLIMITED COLOR CONTROL
+========================================================= */
+
+#themeControlFab{
+  width:58px !important;
+  height:58px !important;
+  font-size:24px !important;
+  border-radius:20px !important;
+  background:
+    conic-gradient(
+      from 0deg,
+      #ff4fa3,
+      #ff9b61,
+      #ffd35f,
+      #4de6a5,
+      #2ee9e1,
+      #4aa8ff,
+      #8b5cf6,
+      #ff4fa3
+    ) !important;
+  border:2px solid rgba(255,255,255,.55) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.45),
+    0 16px 38px rgba(0,0,0,.28) !important;
+}
+
+/* Hide any legacy limited panel if a stale DOM copy somehow exists. */
+#themeControlPanel{
+  display:none !important;
+}
