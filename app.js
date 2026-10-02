@@ -5161,7 +5161,8 @@ function productCurrentUnitPrice(productId) {
     ) === "multi";
 
   if (isMulti) {
-    return Number(
+    return Math.floor(
+    Number(
       latest.usage_unit_cost ||
       (
         Number(
@@ -5178,13 +5179,16 @@ function productCurrentUnitPrice(productId) {
           )
         )
       )
-    );
+    )
+  );
   }
 
-  return Number(
+  return Math.floor(
+    Number(
     latest.landed_unit_cost ||
     latest.unit_price ||
     0
+  )
   );
 }
 
