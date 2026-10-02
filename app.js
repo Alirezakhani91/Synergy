@@ -4922,7 +4922,42 @@ function renderFinance() {
    INVENTORY / PURCHASES / COURSE CONSUMPTION
 ========================================================= */
 
-function inventoryProductStock(productId) {
+function productById(productId) {
+  return state.products.find(
+    p =>
+      String(p.product_id) ===
+      String(productId)
+  );
+}
+
+
+function isMultiUseProduct(productId) {
+  const product =
+    productById(productId);
+
+  return (
+    String(
+      product?.usage_type ||
+      "single"
+    ) === "multi"
+  );
+}
+
+
+function inventoryProductUses(productId) {
+
+  const product =
+    productById(productId);
+
+  if (
+    String(
+      product?.usage_type ||
+      "single"
+    ) !== "multi"
+  ) {
+    return 0;
+  }
+
   return state.purchaseItems
     .filter(
       item =>
@@ -4930,16 +4965,61 @@ function inventoryProductStock(productId) {
         String(productId)
     )
     .reduce(
-      (sum, item) =>
+      (sum,item) =>
         sum +
         Number(
-          item.remaining_qty ?? item.quantity ?? 0
+          item.remaining_uses ??
+          (
+            Number(
+              item.remaining_qty ??
+              item.quantity ??
+              0
+            ) *
+            Number(
+              item.uses_per_unit ||
+              product?.uses_per_unit ||
+              1
+            )
+          )
         ),
       0
     );
 }
 
-function inventoryProductValue(productId) {
+
+function inventoryProductStock(productId) {
+
+  const product =
+    productById(productId);
+
+  const isMulti =
+    String(
+      product?.usage_type ||
+      "single"
+    ) === "multi";
+
+  if (isMulti) {
+
+    const usesPerUnit =
+      Math.max(
+        1,
+        Number(
+          product?.uses_per_unit ||
+          1
+        )
+      );
+
+    const remainingUses =
+      inventoryProductUses(
+        productId
+      );
+
+    return Math.ceil(
+      remainingUses /
+      usesPerUnit
+    );
+  }
+
   return state.purchaseItems
     .filter(
       item =>
@@ -4949,15 +5029,100 @@ function inventoryProductValue(productId) {
     .reduce(
       (sum, item) =>
         sum +
-        Number(item.remaining_qty ?? 0) *
         Number(
-          item.landed_unit_cost ??
-          item.unit_price ??
+          item.remaining_qty ??
+          item.quantity ??
           0
         ),
       0
     );
 }
+
+
+function inventoryProductValue(productId) {
+
+  const product =
+    productById(productId);
+
+  const isMulti =
+    String(
+      product?.usage_type ||
+      "single"
+    ) === "multi";
+
+  return state.purchaseItems
+    .filter(
+      item =>
+        String(item.product_id) ===
+        String(productId)
+    )
+    .reduce(
+      (sum, item) => {
+
+        if (isMulti) {
+
+          const remainingUses =
+            Number(
+              item.remaining_uses ??
+              (
+                Number(
+                  item.remaining_qty ??
+                  item.quantity ??
+                  0
+                ) *
+                Number(
+                  item.uses_per_unit ||
+                  product?.uses_per_unit ||
+                  1
+                )
+              )
+            );
+
+          const useCost =
+            Number(
+              item.usage_unit_cost ??
+              (
+                Number(
+                  item.landed_unit_cost ??
+                  item.unit_price ??
+                  0
+                ) /
+                Math.max(
+                  1,
+                  Number(
+                    item.uses_per_unit ||
+                    product?.uses_per_unit ||
+                    1
+                  )
+                )
+              )
+            );
+
+          return (
+            sum +
+            remainingUses *
+            useCost
+          );
+        }
+
+        return (
+          sum +
+          Number(
+            item.remaining_qty ??
+            0
+          ) *
+          Number(
+            item.landed_unit_cost ??
+            item.unit_price ??
+            0
+          )
+        );
+      },
+      0
+    );
+}
+
+
 
 
 function activeProducts() {
@@ -4973,14 +5138,11 @@ function activeProducts() {
 
 function inventoryTotals() {
   const stockValue =
-    state.purchaseItems.reduce(
-      (sum, item) =>
+    activeProducts().reduce(
+      (sum, product) =>
         sum +
-        Number(item.remaining_qty ?? 0) *
-        Number(
-          item.landed_unit_cost ??
-          item.unit_price ??
-          0
+        inventoryProductValue(
+          product.product_id
         ),
       0
     );
@@ -5328,7 +5490,44 @@ function renderInventory() {
                               }"
                             >
                               ${faNum(stock)}
+                              ${esc(p.unit || "عدد")}
                             </span>
+
+                            ${
+                              String(
+                                p.usage_type ||
+                                "single"
+                              ) === "multi"
+                                ? `
+                                  <div
+                                    style="
+                                      font-size:9px;
+                                      opacity:.65;
+                                      margin-top:5px;
+                                      line-height:1.7;
+                                    "
+                                  >
+                                    چندبارمصرف —
+                                    ${faNum(
+                                      inventoryProductUses(
+                                        p.product_id
+                                      )
+                                    )}
+                                    بار استفاده باقی‌مانده
+                                  </div>
+                                `
+                                : `
+                                  <div
+                                    style="
+                                      font-size:9px;
+                                      opacity:.55;
+                                      margin-top:5px;
+                                    "
+                                  >
+                                    یک‌بارمصرف
+                                  </div>
+                                `
+                            }
                           </td>
 
                           <td style="padding:12px">
@@ -5810,6 +6009,44 @@ function editProduct(product) {
       )}
 
       ${selectField(
+        "نوع مصرف",
+        "usage_type",
+        `
+          <option
+            value="single"
+            ${String(product.usage_type || "single") === "single" ? "selected" : ""}
+          >
+            یک‌بارمصرف
+          </option>
+          <option
+            value="multi"
+            ${String(product.usage_type || "") === "multi" ? "selected" : ""}
+          >
+            چندبارمصرف
+          </option>
+        `
+      )}
+
+      <div
+        id="editMultiUseFields"
+        class="field"
+        style="${
+          String(product.usage_type || "single") === "multi"
+            ? "display:flex"
+            : "display:none"
+        }"
+      >
+        <span>تعداد دفعات استفاده از هر واحد مصرف</span>
+        <input
+          name="uses_per_unit"
+          type="text"
+          data-number="true"
+          inputmode="numeric"
+          value="${esc(product.uses_per_unit || 1)}"
+        >
+      </div>
+
+      ${selectField(
         "دسته‌بندی",
         "category",
         `
@@ -5851,6 +6088,45 @@ function editProduct(product) {
 
     </form>
   `);
+
+  const editUsageType =
+    $("#editProductForm [name='usage_type']");
+
+  const editMultiFields =
+    $("#editMultiUseFields");
+
+  const syncEditUsageFields =
+    () => {
+
+      const isMulti =
+        editUsageType?.value ===
+        "multi";
+
+      if (editMultiFields) {
+        editMultiFields.style.display =
+          isMulti
+            ? "flex"
+            : "none";
+      }
+
+      const input =
+        $("#editProductForm [name='uses_per_unit']");
+
+      if (
+        input &&
+        !isMulti
+      ) {
+        input.value = "1";
+      }
+    };
+
+  if (editUsageType) {
+    editUsageType.onchange =
+      syncEditUsageFields;
+  }
+
+  syncEditUsageFields();
+
 
   $("#editProductForm")
     .onsubmit =
@@ -6123,6 +6399,40 @@ function newProduct() {
       )}
 
       ${selectField(
+        "نوع مصرف",
+        "usage_type",
+        `
+          <option value="single">یک‌بارمصرف</option>
+          <option value="multi">چندبارمصرف</option>
+        `
+      )}
+
+      <div
+        id="multiUseFields"
+        class="field"
+        style="display:none"
+      >
+        <span>تعداد دفعات استفاده از هر واحد مصرف</span>
+        <input
+          name="uses_per_unit"
+          type="text"
+          data-number="true"
+          inputmode="numeric"
+          placeholder="مثلاً 3"
+        >
+        <small
+          style="
+            margin-top:5px;
+            opacity:.58;
+            font-size:9px;
+            line-height:1.8;
+          "
+        >
+          مثال: اگر یک چسب در 3 دوره قابل استفاده است، عدد 3 را وارد کنید.
+        </small>
+      </div>
+
+      ${selectField(
         "دسته‌بندی",
         "category",
         `
@@ -6156,6 +6466,44 @@ function newProduct() {
 
     </form>
   `);
+
+
+  const usageTypeSelect =
+    $("#productForm [name='usage_type']");
+
+  const multiUseFields =
+    $("#multiUseFields");
+
+  const syncUsageFields = () => {
+
+    const isMulti =
+      usageTypeSelect?.value ===
+      "multi";
+
+    if (multiUseFields) {
+      multiUseFields.style.display =
+        isMulti
+          ? "flex"
+          : "none";
+    }
+
+    const usesInput =
+      $("#productForm [name='uses_per_unit']");
+
+    if (
+      usesInput &&
+      !isMulti
+    ) {
+      usesInput.value = "1";
+    }
+  };
+
+  if (usageTypeSelect) {
+    usageTypeSelect.onchange =
+      syncUsageFields;
+  }
+
+  syncUsageFields();
 
 
   $("#productForm").onsubmit =
@@ -6884,6 +7232,21 @@ async function newPurchase() {
       return;
     }
 
+    const isMulti =
+      String(
+        product?.usage_type ||
+        "single"
+      ) === "multi";
+
+    const usesPerUnit =
+      Math.max(
+        1,
+        Number(
+          product?.uses_per_unit ||
+          1
+        )
+      );
+
     preview.innerHTML = `
       <b>
         هر
@@ -6892,6 +7255,21 @@ async function newPurchase() {
         ${faNum(factor)}
         ${esc(consumptionUnit)}
       </b>
+
+      ${
+        isMulti
+          ? `
+            <br>
+            هر
+            ${esc(consumptionUnit)}
+            =
+            <b>
+              ${faNum(usesPerUnit)}
+              بار استفاده
+            </b>
+          `
+          : ""
+      }
 
       <br>
 
@@ -6903,6 +7281,21 @@ async function newPurchase() {
               ${faNum(consumptionQty)}
               ${esc(consumptionUnit)}
             </b>
+            ${
+              isMulti
+                ? `
+                  <br>
+                  ظرفیت کل استفاده:
+                  <b>
+                    ${faNum(
+                      consumptionQty *
+                      usesPerUnit
+                    )}
+                    بار
+                  </b>
+                `
+                : ""
+            }
           `
           : `
             تعداد
@@ -7270,7 +7663,8 @@ function newConsumption() {
       <span>COURSE CONSUMPTION</span>
       <h2>ثبت مصرف دوره</h2>
       <p>
-        مقدار مصرف‌شده از موجودی انبار کم و هزینه واقعی آن به دوره تخصیص داده می‌شود.
+        برای کالاهای یک‌بارمصرف مقدار مصرف ثبت می‌شود.
+        برای کالاهای چندبارمصرف، تعداد دفعات استفاده ثبت می‌شود و فقط سهم همان استفاده به هزینه دوره می‌رود.
       </p>
     </div>
 
@@ -7315,14 +7709,28 @@ function newConsumption() {
                   p.product_id
                 );
 
+              const uses =
+                inventoryProductUses(
+                  p.product_id
+                );
+
+              const multi =
+                String(
+                  p.usage_type ||
+                  "single"
+                ) === "multi";
+
               return `
                 <option
                   value="${esc(p.product_id)}"
                 >
                   ${esc(p.product_name)}
-                  — موجودی:
-                  ${faNum(stock)}
-                  ${esc(p.unit || "")}
+                  —
+                  ${
+                    multi
+                      ? `${faNum(uses)} بار استفاده باقی‌مانده`
+                      : `موجودی ${faNum(stock)} ${esc(p.unit || "")}`
+                  }
                 </option>
               `;
             }).join("")
@@ -7330,11 +7738,31 @@ function newConsumption() {
         `
       )}
 
-      ${formField(
-        "تعداد مصرف",
-        "quantity",
-        "number"
-      )}
+      <label class="field">
+        <span id="consumptionQtyLabel">
+          تعداد مصرف
+        </span>
+
+        <input
+          name="quantity"
+          type="text"
+          data-number="true"
+          inputmode="numeric"
+          autocomplete="off"
+        >
+
+        <small
+          id="consumptionQtyHelp"
+          style="
+            margin-top:5px;
+            opacity:.58;
+            font-size:9px;
+            line-height:1.8;
+          "
+        >
+          کالا را انتخاب کنید.
+        </small>
+      </label>
 
       ${formField(
         "تاریخ مصرف",
@@ -7350,6 +7778,17 @@ function newConsumption() {
         ></textarea>
       </label>
 
+      <div
+        id="consumptionCostPreview"
+        class="panel full"
+        style="
+          padding:12px;
+          font-size:10px;
+          line-height:1.9;
+          display:none;
+        "
+      ></div>
+
       <button
         class="primary full submit"
         type="submit"
@@ -7359,6 +7798,166 @@ function newConsumption() {
 
     </form>
   `);
+
+
+  const productSelect =
+    $("#consumptionForm [name='product_id']");
+
+  const qtyInput =
+    $("#consumptionForm [name='quantity']");
+
+  const qtyLabel =
+    $("#consumptionQtyLabel");
+
+  const qtyHelp =
+    $("#consumptionQtyHelp");
+
+  const preview =
+    $("#consumptionCostPreview");
+
+
+  const syncConsumptionForm =
+    () => {
+
+      const product =
+        state.products.find(
+          p =>
+            String(p.product_id) ===
+            String(
+              productSelect?.value ||
+              ""
+            )
+        );
+
+      if (!product) {
+
+        if (preview) {
+          preview.style.display =
+            "none";
+        }
+
+        return;
+      }
+
+      const multi =
+        String(
+          product.usage_type ||
+          "single"
+        ) === "multi";
+
+      const qty =
+        Number(
+          rawNumber(
+            qtyInput?.value
+          ) || 0
+        );
+
+      if (multi) {
+
+        const remainingUses =
+          inventoryProductUses(
+            product.product_id
+          );
+
+        if (qtyLabel) {
+          qtyLabel.textContent =
+            "تعداد دفعات استفاده";
+        }
+
+        if (qtyHelp) {
+          qtyHelp.textContent =
+            `این کالا چندبارمصرف است. ${faNum(remainingUses)} بار استفاده باقی مانده است.`;
+        }
+
+        if (preview) {
+
+          const batches =
+            state.purchaseItems.filter(
+              x =>
+                String(x.product_id) ===
+                String(product.product_id) &&
+                Number(
+                  x.remaining_uses ??
+                  0
+                ) > 0
+            );
+
+          const firstBatch =
+            batches[0];
+
+          const estimatedUseCost =
+            Number(
+              firstBatch?.usage_unit_cost ||
+              0
+            );
+
+          preview.style.display =
+            "block";
+
+          preview.innerHTML = `
+            <b>کالای چندبارمصرف</b>
+            <br>
+            هر واحد:
+            ${faNum(
+              Number(
+                product.uses_per_unit ||
+                1
+              )
+            )}
+            بار قابل استفاده است.
+            ${
+              qty > 0 &&
+              estimatedUseCost > 0
+                ? `
+                  <br>
+                  هزینه تقریبی این ثبت:
+                  <b>
+                    ${money(
+                      qty *
+                      estimatedUseCost
+                    )}
+                  </b>
+                `
+                : ""
+            }
+          `;
+        }
+
+      } else {
+
+        const stock =
+          inventoryProductStock(
+            product.product_id
+          );
+
+        if (qtyLabel) {
+          qtyLabel.textContent =
+            `تعداد مصرف (${product.unit || "عدد"})`;
+        }
+
+        if (qtyHelp) {
+          qtyHelp.textContent =
+            `موجودی فعلی: ${faNum(stock)} ${product.unit || ""}`;
+        }
+
+        if (preview) {
+          preview.style.display =
+            "none";
+        }
+      }
+    };
+
+
+  if (productSelect) {
+    productSelect.onchange =
+      syncConsumptionForm;
+  }
+
+  if (qtyInput) {
+    qtyInput.oninput =
+      syncConsumptionForm;
+  }
+
 
   $("#consumptionForm").onsubmit =
     async e => {
@@ -7375,25 +7974,44 @@ function newConsumption() {
           ) || 0
         );
 
+      const product =
+        state.products.find(
+          p =>
+            String(p.product_id) ===
+            String(data.product_id)
+        );
+
       if (
         !data.product_id ||
         qty <= 0
       ) {
         toast(
-          "کالا و تعداد مصرف را وارد کنید.",
+          "کالا و مقدار مصرف را وارد کنید.",
           true
         );
         return;
       }
 
-      const stock =
-        inventoryProductStock(
-          data.product_id
-        );
+      const multi =
+        String(
+          product?.usage_type ||
+          "single"
+        ) === "multi";
 
-      if (qty > stock) {
+      const available =
+        multi
+          ? inventoryProductUses(
+              data.product_id
+            )
+          : inventoryProductStock(
+              data.product_id
+            );
+
+      if (qty > available) {
         toast(
-          `موجودی کافی نیست. موجودی فعلی ${faNum(stock)} است.`,
+          multi
+            ? `تعداد دفعات قابل استفاده کافی نیست. باقی‌مانده: ${faNum(available)} بار`
+            : `موجودی کافی نیست. موجودی فعلی ${faNum(available)} است.`,
           true
         );
         return;
@@ -7405,10 +8023,17 @@ function newConsumption() {
           ...data,
           quantity:qty
         },
-        "مصرف دوره ثبت شد و موجودی بروزرسانی شد"
+        multi
+          ? "استفاده دوره ثبت شد و سهم هزینه به دوره تخصیص یافت"
+          : "مصرف دوره ثبت شد و موجودی بروزرسانی شد"
       );
     };
+
+
+  syncConsumptionForm();
 }
+
+
 
 
 /* =========================================================
