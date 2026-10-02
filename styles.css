@@ -3028,3 +3028,220 @@ body{
 #themeControlPanel{
   display:none !important;
 }
+
+
+/* =========================================================
+   V13.2 — TRUE JALALI DATE PICKER
+========================================================= */
+
+.jalali-field{
+  position:relative;
+}
+
+.jalali-input-wrap{
+  display:flex;
+  align-items:center;
+  gap:7px;
+}
+
+.jalali-input-wrap > input{
+  cursor:pointer;
+  caret-color:transparent;
+}
+
+.jalali-calendar-button{
+  flex:none;
+  width:46px;
+  height:46px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,.14);
+  color:#fff;
+  background:rgba(255,255,255,.08);
+  font-size:18px;
+}
+
+.jalali-preview{
+  display:block;
+  margin-top:5px;
+  color:rgba(255,255,255,.58);
+  font-size:9px;
+}
+
+.jalali-picker-overlay{
+  position:fixed;
+  z-index:5000;
+  inset:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:18px;
+  background:rgba(15,14,35,.52);
+  backdrop-filter:blur(16px);
+  -webkit-backdrop-filter:blur(16px);
+}
+
+.jalali-picker{
+  width:min(390px,100%);
+  padding:18px;
+  border-radius:27px;
+  color:#fff;
+  border:1px solid rgba(255,255,255,.24);
+  background:
+    linear-gradient(
+      145deg,
+      rgba(92,74,120,.97),
+      rgba(61,51,89,.96)
+    );
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.22),
+    0 30px 90px rgba(0,0,0,.35);
+}
+
+.jalali-picker-head{
+  display:grid;
+  grid-template-columns:44px 1fr 44px;
+  align-items:center;
+  gap:8px;
+  margin-bottom:14px;
+}
+
+.jalali-picker-head > button{
+  width:42px;
+  height:42px;
+  border:0;
+  border-radius:14px;
+  color:#fff;
+  background:rgba(255,255,255,.09);
+  font-size:27px;
+}
+
+.jalali-picker-head > div{
+  text-align:center;
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+}
+
+.jalali-picker-head strong{
+  font-size:16px;
+}
+
+.jalali-picker-head small{
+  font-size:9px;
+  color:rgba(255,255,255,.55);
+}
+
+.jalali-weekdays,
+.jalali-calendar-grid{
+  display:grid;
+  grid-template-columns:repeat(7,1fr);
+  gap:5px;
+}
+
+.jalali-weekdays{
+  margin-bottom:6px;
+}
+
+.jalali-weekdays span{
+  text-align:center;
+  color:rgba(255,255,255,.55);
+  font-size:10px;
+  padding:6px 0;
+}
+
+.jalali-empty{
+  min-height:39px;
+}
+
+.jalali-day{
+  min-height:39px;
+  border:0;
+  border-radius:12px;
+  color:#fff;
+  background:rgba(255,255,255,.055);
+  font-size:11px;
+  transition:.18s;
+}
+
+.jalali-day:hover{
+  background:rgba(255,255,255,.15);
+}
+
+.jalali-day.today{
+  box-shadow:
+    inset 0 0 0 1px
+    var(--theme-accent,#74efe7);
+}
+
+.jalali-day.selected{
+  background:
+    linear-gradient(
+      135deg,
+      var(--theme-primary,#ff66b7),
+      var(--theme-secondary,#8b5cf6)
+    );
+  box-shadow:0 8px 20px rgba(0,0,0,.2);
+}
+
+.jalali-time-field{
+  margin-top:13px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:11px 12px;
+  border-radius:15px;
+  background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.1);
+}
+
+.jalali-time-field span{
+  font-size:10px;
+}
+
+.jalali-time-field input{
+  color:#fff;
+  border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.08);
+  border-radius:10px;
+  padding:7px;
+  font-family:inherit;
+}
+
+.jalali-picker-footer{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:7px;
+  margin-top:14px;
+}
+
+.jalali-picker-footer button{
+  min-height:42px;
+}
+
+@media(max-width:500px){
+
+  .jalali-picker-overlay{
+    padding:0;
+    align-items:flex-end;
+  }
+
+  .jalali-picker{
+    width:100%;
+    border-radius:28px 28px 0 0;
+    padding:
+      18px
+      14px
+      calc(
+        18px +
+        env(safe-area-inset-bottom)
+      );
+  }
+
+  .jalali-day{
+    min-height:42px;
+  }
+}
