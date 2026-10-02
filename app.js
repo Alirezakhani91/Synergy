@@ -14,6 +14,7 @@ const state = {
   expenses: [],
   followups: [],
   invoices: [],
+  todos: [],
   products: [],
   purchases: [],
   purchaseItems: [],
@@ -53,6 +54,7 @@ const navItems = [
   ["finance", "◈", "مالی"],
   ["inventory", "◫", "انبار"],
   ["invoices", "▧", "فاکتورها"],
+  ["todos", "✓", "یادداشت‌ها"],
   ["reports", "▤", "گزارش"]
 ];
 
@@ -120,6 +122,41 @@ function bindNumberInputs(root = document) {
   });
 }
 
+
+function bindJalaliDateInputs(root = document) {
+  root.querySelectorAll("[data-jalali='true']").forEach(input => {
+
+    const previewId =
+      input.dataset.previewId;
+
+    const preview =
+      previewId
+        ? document.getElementById(previewId)
+        : null;
+
+    const updatePreview = () => {
+      if (!preview) return;
+
+      preview.textContent =
+        input.value
+          ? jalaliDate(input.value + "T12:00:00")
+          : "تاریخ شمسی نمایش داده می‌شود";
+    };
+
+    input.addEventListener(
+      "change",
+      updatePreview
+    );
+
+    input.addEventListener(
+      "input",
+      updatePreview
+    );
+
+    updatePreview();
+  });
+}
+
 function formDataObject(form) {
   const data = Object.fromEntries(new FormData(form));
 
@@ -130,25 +167,60 @@ function formDataObject(form) {
   return data;
 }
 
-function dateFa(v) {
-
+function jalaliDate(
+  v,
+  withWeekday = false
+) {
   if (!v) return "—";
 
   try {
+    const date = new Date(v);
 
     return new Intl.DateTimeFormat(
-      "fa-IR",
+      "fa-IR-u-ca-persian",
       {
-        month: "short",
-        day: "numeric"
+        calendar: "persian",
+        numberingSystem: "latn",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        ...(withWeekday
+          ? { weekday: "long" }
+          : {})
       }
-    ).format(new Date(v));
-
+    ).format(date);
   } catch {
-
     return String(v);
   }
 }
+
+function jalaliDateTime(v) {
+  if (!v) return "—";
+
+  try {
+    const date = new Date(v);
+
+    return new Intl.DateTimeFormat(
+      "fa-IR-u-ca-persian",
+      {
+        calendar: "persian",
+        numberingSystem: "latn",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit"
+      }
+    ).format(date);
+  } catch {
+    return String(v);
+  }
+}
+
+function dateFa(v) {
+  return jalaliDate(v);
+}
+
 
 function toast(msg, bad = false) {
 
@@ -767,6 +839,7 @@ async function loadAll(
         safeLoad("payments", []),
         safeLoad("expenses", []),
         safeLoad("followups", []),
+        safeLoad("todos", []),
         safeLoad("products", []),
         safeLoad("purchases", []),
         safeLoad("purchaseItems", []),
@@ -1173,6 +1246,7 @@ function render() {
     finance: renderFinance,
     inventory: renderInventory,
     invoices: renderInvoices,
+    todos: renderTodos,
     reports: renderReports
   };
 
@@ -2925,6 +2999,482 @@ function openCourse(id) {
   if (editBtn)
     editBtn.onclick =
       () => editCourse(course);
+}
+
+
+/* =========================================================
+   NOTES / TODO LIST
+========================================================= */
+
+function todoPriorityLabel(p) {
+  return {
+    low: "کم",
+    normal: "عادی",
+    high: "بالا",
+    urgent: "فوری"
+  }[p] || "عادی";
+}
+
+function todoPriorityClass(p) {
+  return {
+    low: "gray",
+    normal: "blue",
+    high: "orange",
+    urgent: "red"
+  }[p] || "blue";
+}
+
+function renderTodos() {
+
+  title(
+    "یادداشت‌ها و کارها",
+    "موضوعاتی که باید بعداً بررسی، خرید یا پیگیری شوند"
+  );
+
+  const open = state.todos.filter(
+    x =>
+      x.status !== "done" &&
+      x.status !== "cancelled"
+  );
+
+  const done = state.todos.filter(
+    x => x.status === "done"
+  );
+
+  const overdue = open.filter(x => {
+    if (!x.due_date) return false;
+    return new Date(x.due_date) < new Date();
+  });
+
+  $("#content").innerHTML = `
+
+    <div class="kpi-grid" style="margin-top:0;margin-bottom:14px">
+
+      <div class="kpi">
+        <span>کارهای باز</span>
+        <strong>${faNum(open.length)}</strong>
+        <small>نیازمند اقدام</small>
+      </div>
+
+      <div class="kpi warning">
+        <span>سررسید گذشته</span>
+        <strong>${faNum(overdue.length)}</strong>
+        <small>اولویت پیگیری</small>
+      </div>
+
+      <div class="kpi success">
+        <span>انجام‌شده</span>
+        <strong>${faNum(done.length)}</strong>
+        <small>تکمیل‌شده</small>
+      </div>
+
+    </div>
+
+    <div class="toolbar">
+
+      <div>
+        <h3>یادداشت‌ها و To‑Do</h3>
+        <p>
+          خرید وسایل، تماس‌ها، موضوعات جلسات و هر چیزی که نباید فراموش شود.
+        </p>
+      </div>
+
+      <button
+        class="primary"
+        id="newTodoBtn"
+      >
+        ＋ یادداشت جدید
+      </button>
+
+    </div>
+
+    <section class="panel">
+
+      <div class="lead-list">
+
+        ${
+          state.todos.length
+            ? state.todos
+                .slice()
+                .sort((a,b) => {
+                  const ad = a.status === "done" ? 1 : 0;
+                  const bd = b.status === "done" ? 1 : 0;
+                  if (ad !== bd) return ad - bd;
+
+                  return String(a.due_date || "9999")
+                    .localeCompare(
+                      String(b.due_date || "9999")
+                    );
+                })
+                .map(todo => `
+
+                  <div
+                    class="lead-row todo-row ${
+                      todo.status === "done"
+                        ? "todo-done"
+                        : ""
+                    }"
+                  >
+
+                    <button
+                      class="todo-check"
+                      data-todo-done="${esc(todo.todo_id)}"
+                      title="تغییر وضعیت"
+                    >
+                      ${
+                        todo.status === "done"
+                          ? "✓"
+                          : "○"
+                      }
+                    </button>
+
+                    <div class="lead-main">
+
+                      <b>
+                        ${esc(
+                          todo.title ||
+                          "بدون عنوان"
+                        )}
+                      </b>
+
+                      <span>
+                        ${
+                          esc(
+                            todo.category ||
+                            "عمومی"
+                          )
+                        }
+
+                        ${
+                          todo.due_date
+                            ? " · سررسید " +
+                              jalaliDate(todo.due_date)
+                            : ""
+                        }
+                      </span>
+
+                      ${
+                        todo.notes
+                          ? `
+                            <span
+                              style="margin-top:6px"
+                            >
+                              ${esc(todo.notes)}
+                            </span>
+                          `
+                          : ""
+                      }
+
+                    </div>
+
+                    <div class="lead-end">
+
+                      <em
+                        class="badge ${
+                          todoPriorityClass(
+                            todo.priority
+                          )
+                        }"
+                      >
+                        ${
+                          todoPriorityLabel(
+                            todo.priority
+                          )
+                        }
+                      </em>
+
+                      <div
+                        style="
+                          display:flex;
+                          gap:6px;
+                          margin-top:8px
+                        "
+                      >
+
+                        <button
+                          class="secondary glass-button todo-mini"
+                          data-todo-edit="${esc(todo.todo_id)}"
+                        >
+                          ویرایش
+                        </button>
+
+                        <button
+                          class="danger-action todo-mini"
+                          data-todo-delete="${esc(todo.todo_id)}"
+                        >
+                          حذف
+                        </button>
+
+                      </div>
+
+                    </div>
+
+                  </div>
+                `).join("")
+            : `
+              <div class="empty">
+                <b>هنوز یادداشتی ثبت نشده</b>
+                <span>
+                  اولین موضوع یا کار آینده را ثبت کنید.
+                </span>
+              </div>
+            `
+        }
+
+      </div>
+
+    </section>
+  `;
+
+  $("#newTodoBtn").onclick =
+    () => todoForm();
+
+  $$("[data-todo-edit]").forEach(btn => {
+    btn.onclick = () => {
+      const todo =
+        state.todos.find(
+          x =>
+            String(x.todo_id) ===
+            String(btn.dataset.todoEdit)
+        );
+
+      if (todo) todoForm(todo);
+    };
+  });
+
+  $$("[data-todo-delete]").forEach(btn => {
+    btn.onclick =
+      () =>
+        deleteTodo(
+          btn.dataset.todoDelete
+        );
+  });
+
+  $$("[data-todo-done]").forEach(btn => {
+    btn.onclick = () => {
+      const todo =
+        state.todos.find(
+          x =>
+            String(x.todo_id) ===
+            String(btn.dataset.todoDone)
+        );
+
+      if (!todo) return;
+
+      updateTodoStatus(
+        todo,
+        todo.status === "done"
+          ? "open"
+          : "done"
+      );
+    };
+  });
+}
+
+
+function todoForm(todo = null) {
+
+  const editing = !!todo;
+
+  modal(`
+
+    <div class="modal-title">
+
+      <span>
+        ${editing ? "EDIT TODO" : "NEW TODO"}
+      </span>
+
+      <h2>
+        ${editing ? "ویرایش یادداشت" : "یادداشت / کار جدید"}
+      </h2>
+
+      <p>
+        همه فیلدها اختیاری هستند.
+      </p>
+
+    </div>
+
+
+    <form
+      id="todoForm"
+      class="form-grid"
+    >
+
+      ${formField(
+        "عنوان",
+        "title",
+        "text",
+        "",
+        todo?.title || ""
+      )}
+
+      ${selectField(
+        "دسته‌بندی",
+        "category",
+        `
+          ${["","خرید","پیگیری","جلسه","مالی","دوره","انبار","عمومی"].map(x => `
+            <option
+              value="${esc(x)}"
+              ${String(x) === String(todo?.category || "") ? "selected" : ""}
+            >
+              ${x || "بدون دسته‌بندی"}
+            </option>
+          `).join("")}
+        `
+      )}
+
+      ${selectField(
+        "اولویت",
+        "priority",
+        `
+          ${[
+            ["low","کم"],
+            ["normal","عادی"],
+            ["high","بالا"],
+            ["urgent","فوری"]
+          ].map(([value,label]) => `
+            <option
+              value="${value}"
+              ${String(value) === String(todo?.priority || "normal") ? "selected" : ""}
+            >
+              ${label}
+            </option>
+          `).join("")}
+        `
+      )}
+
+      ${formField(
+        "تاریخ سررسید",
+        "due_date",
+        "date",
+        "",
+        todo?.due_date
+          ? String(todo.due_date).slice(0,10)
+          : ""
+      )}
+
+      <label class="field full">
+
+        <span>توضیحات</span>
+
+        <textarea
+          name="notes"
+          rows="4"
+        >${esc(todo?.notes || "")}</textarea>
+
+      </label>
+
+
+      <button
+        class="primary full submit"
+        type="submit"
+      >
+        ${
+          editing
+            ? "ذخیره تغییرات"
+            : "ثبت یادداشت"
+        }
+      </button>
+
+    </form>
+  `);
+
+
+  $("#todoForm").onsubmit =
+    async e => {
+
+      e.preventDefault();
+
+      const data =
+        formDataObject(e.target);
+
+      if (editing) {
+        data.todo_id =
+          todo.todo_id;
+      }
+
+      await submitPost(
+        editing
+          ? "updateTodo"
+          : "createTodo",
+        data,
+        editing
+          ? "یادداشت ویرایش شد"
+          : "یادداشت ثبت شد"
+      );
+    };
+}
+
+
+async function deleteTodo(id) {
+
+  if (
+    !confirm(
+      "این یادداشت حذف شود؟"
+    )
+  ) return;
+
+  try {
+
+    const result =
+      await post(
+        "deleteTodo",
+        { todo_id:id }
+      );
+
+    if (!result.success)
+      throw new Error(
+        result.message ||
+        "حذف انجام نشد"
+      );
+
+    toast("یادداشت حذف شد");
+
+    await loadAll(false);
+
+  } catch (error) {
+
+    toast(
+      error.message ||
+      "حذف انجام نشد",
+      true
+    );
+  }
+}
+
+
+async function updateTodoStatus(
+  todo,
+  status
+) {
+
+  try {
+
+    const result =
+      await post(
+        "updateTodo",
+        {
+          todo_id:todo.todo_id,
+          status
+        }
+      );
+
+    if (!result.success)
+      throw new Error(
+        result.message ||
+        "بروزرسانی انجام نشد"
+      );
+
+    await loadAll(false);
+
+  } catch (error) {
+
+    toast(
+      error.message ||
+      "بروزرسانی انجام نشد",
+      true
+    );
+  }
 }
 
 
@@ -6301,6 +6851,7 @@ function modal(html) {
     .remove("hidden");
 
   bindNumberInputs($("#modal"));
+  bindJalaliDateInputs($("#modal"));
 }
 
 
@@ -6324,9 +6875,24 @@ function formField(
 ) {
 
   const isNumber = type === "number";
-  const finalType = isNumber ? "text" : type;
+  const isDate =
+    type === "date" ||
+    type === "datetime-local";
+
+  const finalType =
+    isNumber ? "text" : type;
+
   const numberAttrs = isNumber
     ? 'data-number="true" inputmode="numeric" autocomplete="off"'
+    : "";
+
+  const previewId =
+    isDate
+      ? `jalali-${name}-${Math.random().toString(36).slice(2,8)}`
+      : "";
+
+  const dateAttrs = isDate
+    ? `data-jalali="true" data-preview-id="${previewId}"`
     : "";
 
   return `
@@ -6341,8 +6907,22 @@ function formField(
         type="${finalType}"
         value="${esc(value)}"
         ${numberAttrs}
+        ${dateAttrs}
         ${extra}
       >
+
+      ${
+        isDate
+          ? `
+            <small
+              id="${previewId}"
+              class="jalali-preview"
+            >
+              تاریخ شمسی نمایش داده می‌شود
+            </small>
+          `
+          : ""
+      }
 
     </label>
   `;
@@ -8284,14 +8864,7 @@ $("#refreshBtn").onclick =
 */
 
 $("#today").textContent =
-  new Intl.DateTimeFormat(
-    "fa-IR",
-    {
-      weekday: "long",
-      day: "numeric",
-      month: "long"
-    }
-  ).format(new Date());
+  new Intl.DateTimeFormat("fa-IR-u-ca-persian", {calendar:"persian", numberingSystem:"latn", weekday:"long", day:"numeric", month:"long", year:"numeric"}).format(new Date());
 
 
 /*
