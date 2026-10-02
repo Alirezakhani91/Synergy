@@ -8904,3 +8904,801 @@ setConnected(false);
 initThemeControls();
 render();
 loadAll(false);
+
+
+
+/* =========================================================
+   UNIVERSAL LIVE COLOR THEME
+========================================================= */
+
+function hexToRgb(hex) {
+  const value = String(hex || "")
+    .replace("#", "")
+    .trim();
+
+  if (value.length !== 6)
+    return { r: 255, g: 102, b: 183 };
+
+  return {
+    r: parseInt(value.slice(0,2), 16),
+    g: parseInt(value.slice(2,4), 16),
+    b: parseInt(value.slice(4,6), 16)
+  };
+}
+
+function rgba(hex, alpha) {
+  const { r, g, b } = hexToRgb(hex);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function applyUniversalTheme(settings = {}) {
+
+  const primary =
+    settings.primary ||
+    "#ff66b7";
+
+  const secondary =
+    settings.secondary ||
+    "#8b5cf6";
+
+  const accent =
+    settings.accent ||
+    "#74efe7";
+
+  const bg1 =
+    settings.bg1 ||
+    "#26335f";
+
+  const bg2 =
+    settings.bg2 ||
+    "#4a2753";
+
+  const bg3 =
+    settings.bg3 ||
+    "#31284f";
+
+  const brightness =
+    Number(
+      settings.brightness ?? 100
+    );
+
+  const saturation =
+    Number(
+      settings.saturation ?? 100
+    );
+
+  const glass =
+    Number(
+      settings.glass ?? 16
+    );
+
+  const root =
+    document.documentElement;
+
+  root.style.setProperty(
+    "--theme-primary",
+    primary
+  );
+
+  root.style.setProperty(
+    "--theme-secondary",
+    secondary
+  );
+
+  root.style.setProperty(
+    "--theme-accent",
+    accent
+  );
+
+  root.style.setProperty(
+    "--theme-bg1",
+    bg1
+  );
+
+  root.style.setProperty(
+    "--theme-bg2",
+    bg2
+  );
+
+  root.style.setProperty(
+    "--theme-bg3",
+    bg3
+  );
+
+  root.style.setProperty(
+    "--theme-brightness",
+    brightness + "%"
+  );
+
+  root.style.setProperty(
+    "--theme-saturation",
+    saturation + "%"
+  );
+
+  root.style.setProperty(
+    "--theme-glass-alpha",
+    Math.max(
+      .04,
+      Math.min(
+        .32,
+        glass / 100
+      )
+    )
+  );
+
+  root.style.setProperty(
+    "--pink",
+    primary
+  );
+
+  root.style.setProperty(
+    "--pink2",
+    primary
+  );
+
+  root.style.setProperty(
+    "--purple",
+    secondary
+  );
+
+  root.style.setProperty(
+    "--cyan",
+    accent
+  );
+
+  document.body.style.background = `
+    radial-gradient(
+      circle at 8% 8%,
+      ${rgba(accent, .42)} 0,
+      transparent 34%
+    ),
+    radial-gradient(
+      circle at 88% 10%,
+      ${rgba(primary, .38)} 0,
+      transparent 32%
+    ),
+    radial-gradient(
+      circle at 82% 78%,
+      ${rgba(primary, .34)} 0,
+      transparent 36%
+    ),
+    radial-gradient(
+      circle at 18% 92%,
+      ${rgba(secondary, .44)} 0,
+      transparent 35%
+    ),
+    linear-gradient(
+      135deg,
+      ${bg1},
+      ${bg3} 48%,
+      ${bg2}
+    )
+  `;
+
+  document.body.style.filter =
+    `brightness(${brightness}%) saturate(${saturation}%)`;
+
+  localStorage.setItem(
+    "synergyThemeUniversal",
+    JSON.stringify({
+      primary,
+      secondary,
+      accent,
+      bg1,
+      bg2,
+      bg3,
+      brightness,
+      saturation,
+      glass
+    })
+  );
+}
+
+
+function loadUniversalTheme() {
+
+  try {
+
+    const saved =
+      JSON.parse(
+        localStorage.getItem(
+          "synergyThemeUniversal"
+        ) || "{}"
+      );
+
+    applyUniversalTheme(saved);
+
+  } catch {
+
+    applyUniversalTheme({});
+  }
+}
+
+
+function openUniversalThemePanel() {
+
+  let panel =
+    document.getElementById(
+      "universalThemePanel"
+    );
+
+  if (panel) {
+    panel.remove();
+    return;
+  }
+
+  let settings = {};
+
+  try {
+    settings =
+      JSON.parse(
+        localStorage.getItem(
+          "synergyThemeUniversal"
+        ) || "{}"
+      );
+  } catch {
+    settings = {};
+  }
+
+  const values = {
+    primary:
+      settings.primary ||
+      "#ff66b7",
+    secondary:
+      settings.secondary ||
+      "#8b5cf6",
+    accent:
+      settings.accent ||
+      "#74efe7",
+    bg1:
+      settings.bg1 ||
+      "#26335f",
+    bg2:
+      settings.bg2 ||
+      "#4a2753",
+    bg3:
+      settings.bg3 ||
+      "#31284f",
+    brightness:
+      settings.brightness ??
+      100,
+    saturation:
+      settings.saturation ??
+      100,
+    glass:
+      settings.glass ??
+      16
+  };
+
+  panel =
+    document.createElement("div");
+
+  panel.id =
+    "universalThemePanel";
+
+  panel.className =
+    "universal-theme-panel";
+
+  panel.innerHTML = `
+
+    <div class="theme-panel-head">
+
+      <div>
+        <span>LIVE THEME</span>
+        <h3>تنظیم کامل رنگ پلتفرم</h3>
+        <p>
+          هر رنگی را بدون محدودیت انتخاب کن؛
+          تغییر همان لحظه نمایش داده می‌شود.
+        </p>
+      </div>
+
+      <button
+        id="closeThemePanel"
+        class="modal-close"
+        type="button"
+      >
+        ×
+      </button>
+
+    </div>
+
+
+    <div class="theme-colors-grid">
+
+      ${themeColorField(
+        "رنگ اصلی",
+        "themePrimary",
+        values.primary
+      )}
+
+      ${themeColorField(
+        "رنگ دوم",
+        "themeSecondary",
+        values.secondary
+      )}
+
+      ${themeColorField(
+        "رنگ Accent",
+        "themeAccent",
+        values.accent
+      )}
+
+      ${themeColorField(
+        "پس‌زمینه ۱",
+        "themeBg1",
+        values.bg1
+      )}
+
+      ${themeColorField(
+        "پس‌زمینه ۲",
+        "themeBg2",
+        values.bg2
+      )}
+
+      ${themeColorField(
+        "پس‌زمینه ۳",
+        "themeBg3",
+        values.bg3
+      )}
+
+    </div>
+
+
+    ${themeRangeField(
+      "روشنایی کلی",
+      "themeBrightness",
+      60,
+      145,
+      values.brightness,
+      "%"
+    )}
+
+    ${themeRangeField(
+      "اشباع رنگ",
+      "themeSaturation",
+      40,
+      180,
+      values.saturation,
+      "%"
+    )}
+
+    ${themeRangeField(
+      "شفافیت Glass",
+      "themeGlass",
+      5,
+      30,
+      values.glass,
+      "%"
+    )}
+
+
+    <div class="theme-presets">
+
+      <button
+        type="button"
+        data-theme-preset="pink"
+      >
+        صورتی
+      </button>
+
+      <button
+        type="button"
+        data-theme-preset="blue"
+      >
+        آبی
+      </button>
+
+      <button
+        type="button"
+        data-theme-preset="green"
+      >
+        سبز
+      </button>
+
+      <button
+        type="button"
+        data-theme-preset="purple"
+      >
+        بنفش
+      </button>
+
+      <button
+        type="button"
+        data-theme-preset="orange"
+      >
+        نارنجی
+      </button>
+
+      <button
+        type="button"
+        data-theme-preset="mono"
+      >
+        خنثی
+      </button>
+
+    </div>
+
+
+    <button
+      id="resetTheme"
+      type="button"
+      class="secondary glass-button theme-reset"
+    >
+      بازگشت به حالت پیش‌فرض
+    </button>
+  `;
+
+  document.body.appendChild(
+    panel
+  );
+
+  bindUniversalThemePanel();
+}
+
+
+function themeColorField(
+  label,
+  id,
+  value
+) {
+
+  return `
+    <label class="theme-color-field">
+
+      <span>${label}</span>
+
+      <div class="theme-color-control">
+
+        <input
+          id="${id}"
+          type="color"
+          value="${value}"
+        >
+
+        <input
+          id="${id}Text"
+          class="theme-hex-input"
+          type="text"
+          value="${value}"
+          maxlength="7"
+          spellcheck="false"
+        >
+
+      </div>
+
+    </label>
+  `;
+}
+
+
+function themeRangeField(
+  label,
+  id,
+  min,
+  max,
+  value,
+  suffix
+) {
+
+  return `
+    <label class="theme-range-field">
+
+      <div>
+        <span>${label}</span>
+
+        <b id="${id}Value">
+          ${value}${suffix}
+        </b>
+      </div>
+
+      <input
+        id="${id}"
+        type="range"
+        min="${min}"
+        max="${max}"
+        value="${value}"
+      >
+
+    </label>
+  `;
+}
+
+
+function readThemePanelValues() {
+
+  return {
+    primary:
+      $("#themePrimary")?.value ||
+      "#ff66b7",
+
+    secondary:
+      $("#themeSecondary")?.value ||
+      "#8b5cf6",
+
+    accent:
+      $("#themeAccent")?.value ||
+      "#74efe7",
+
+    bg1:
+      $("#themeBg1")?.value ||
+      "#26335f",
+
+    bg2:
+      $("#themeBg2")?.value ||
+      "#4a2753",
+
+    bg3:
+      $("#themeBg3")?.value ||
+      "#31284f",
+
+    brightness:
+      Number(
+        $("#themeBrightness")
+          ?.value || 100
+      ),
+
+    saturation:
+      Number(
+        $("#themeSaturation")
+          ?.value || 100
+      ),
+
+    glass:
+      Number(
+        $("#themeGlass")
+          ?.value || 16
+      )
+  };
+}
+
+
+function bindUniversalThemePanel() {
+
+  const panel =
+    $("#universalThemePanel");
+
+  if (!panel) return;
+
+  const colorIds = [
+    "themePrimary",
+    "themeSecondary",
+    "themeAccent",
+    "themeBg1",
+    "themeBg2",
+    "themeBg3"
+  ];
+
+  const refresh = () => {
+
+    $("#themeBrightnessValue")
+      .textContent =
+        $("#themeBrightness").value +
+        "%";
+
+    $("#themeSaturationValue")
+      .textContent =
+        $("#themeSaturation").value +
+        "%";
+
+    $("#themeGlassValue")
+      .textContent =
+        $("#themeGlass").value +
+        "%";
+
+    applyUniversalTheme(
+      readThemePanelValues()
+    );
+  };
+
+
+  colorIds.forEach(id => {
+
+    const color =
+      $("#" + id);
+
+    const text =
+      $("#" + id + "Text");
+
+    color.oninput = () => {
+
+      text.value =
+        color.value;
+
+      refresh();
+    };
+
+    text.oninput = () => {
+
+      const value =
+        text.value.trim();
+
+      if (
+        /^#[0-9a-fA-F]{6}$/
+          .test(value)
+      ) {
+
+        color.value =
+          value;
+
+        refresh();
+      }
+    };
+  });
+
+
+  [
+    "themeBrightness",
+    "themeSaturation",
+    "themeGlass"
+  ].forEach(id => {
+
+    $("#" + id).oninput =
+      refresh;
+  });
+
+
+  $("#closeThemePanel").onclick =
+    () =>
+      panel.remove();
+
+
+  $("#resetTheme").onclick =
+    () => {
+
+      localStorage.removeItem(
+        "synergyThemeUniversal"
+      );
+
+      panel.remove();
+
+      applyUniversalTheme({});
+    };
+
+
+  $$("[data-theme-preset]")
+    .forEach(button => {
+
+      button.onclick = () => {
+
+        const presets = {
+
+          pink: {
+            primary:"#ff5fb2",
+            secondary:"#a56cff",
+            accent:"#65e5e0",
+            bg1:"#574070",
+            bg2:"#6d365f",
+            bg3:"#47446d"
+          },
+
+          blue: {
+            primary:"#5fa8ff",
+            secondary:"#786cff",
+            accent:"#65e5e0",
+            bg1:"#243d71",
+            bg2:"#304d73",
+            bg3:"#2a315e"
+          },
+
+          green: {
+            primary:"#51d9a5",
+            secondary:"#67b5ff",
+            accent:"#b2ef72",
+            bg1:"#204b46",
+            bg2:"#32544a",
+            bg3:"#253d48"
+          },
+
+          purple: {
+            primary:"#d16cff",
+            secondary:"#806cff",
+            accent:"#ff70b7",
+            bg1:"#49335f",
+            bg2:"#5b2f62",
+            bg3:"#352e59"
+          },
+
+          orange: {
+            primary:"#ff9a56",
+            secondary:"#ff5f8f",
+            accent:"#ffd46b",
+            bg1:"#6a4539",
+            bg2:"#70364b",
+            bg3:"#4f394d"
+          },
+
+          mono: {
+            primary:"#d6d6df",
+            secondary:"#9ea2b2",
+            accent:"#f0f0f3",
+            bg1:"#363945",
+            bg2:"#46444d",
+            bg3:"#30323b"
+          }
+        };
+
+        const preset =
+          presets[
+            button.dataset
+              .themePreset
+          ];
+
+        if (!preset) return;
+
+        Object.entries({
+          themePrimary:
+            preset.primary,
+          themeSecondary:
+            preset.secondary,
+          themeAccent:
+            preset.accent,
+          themeBg1:
+            preset.bg1,
+          themeBg2:
+            preset.bg2,
+          themeBg3:
+            preset.bg3
+        }).forEach(
+          ([id,value]) => {
+
+            $("#" + id).value =
+              value;
+
+            $("#" + id + "Text")
+              .value =
+                value;
+          }
+        );
+
+        refresh();
+      };
+    });
+}
+
+
+function ensureUniversalThemeButton() {
+
+  if (
+    document.getElementById(
+      "universalThemeButton"
+    )
+  ) return;
+
+  const button =
+    document.createElement("button");
+
+  button.id =
+    "universalThemeButton";
+
+  button.className =
+    "universal-theme-button";
+
+  button.type =
+    "button";
+
+  button.title =
+    "تنظیم رنگ پلتفرم";
+
+  button.innerHTML =
+    "🎨";
+
+  button.onclick =
+    openUniversalThemePanel;
+
+  document.body.appendChild(
+    button
+  );
+}
+
+
+loadUniversalTheme();
+
+document.addEventListener(
+  "DOMContentLoaded",
+  ensureUniversalThemeButton
+);
+
+setTimeout(
+  ensureUniversalThemeButton,
+  200
+);
