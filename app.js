@@ -202,6 +202,378 @@ function setConnected(ok) {
 
 
 /* =========================================================
+   LIVE THEME CONTROLS
+========================================================= */
+
+const THEME_STORAGE_KEY = "synergy_theme_v10";
+
+function themeDefaults() {
+  return {
+    light: 58,
+    pink: 66,
+    hue: 322
+  };
+}
+
+function loadThemeSettings() {
+  try {
+    return {
+      ...themeDefaults(),
+      ...JSON.parse(
+        localStorage.getItem(
+          THEME_STORAGE_KEY
+        ) || "{}"
+      )
+    };
+  } catch (_) {
+    return themeDefaults();
+  }
+}
+
+function saveThemeSettings(settings) {
+  localStorage.setItem(
+    THEME_STORAGE_KEY,
+    JSON.stringify(settings)
+  );
+}
+
+function applyTheme(settings) {
+
+  const light =
+    Math.max(
+      35,
+      Math.min(
+        78,
+        Number(settings.light || 58)
+      )
+    );
+
+  const pink =
+    Math.max(
+      0,
+      Math.min(
+        100,
+        Number(settings.pink || 66)
+      )
+    );
+
+  const hue =
+    Number(settings.hue || 322);
+
+  const pinkAlpha =
+    0.18 +
+    (pink / 100) * 0.36;
+
+  const blueAlpha =
+    0.22 +
+    ((100 - pink) / 100) * 0.24;
+
+  const baseL =
+    Math.max(
+      18,
+      Math.round(light * 0.56)
+    );
+
+  const secondL =
+    Math.max(
+      20,
+      Math.round(light * 0.63)
+    );
+
+  document.documentElement
+    .style
+    .setProperty(
+      "--live-hue",
+      hue
+    );
+
+  document.documentElement
+    .style
+    .setProperty(
+      "--live-light",
+      `${light}%`
+    );
+
+  document.documentElement
+    .style
+    .setProperty(
+      "--live-panel-alpha",
+      String(
+        0.10 +
+        (light - 35) / 43 * 0.10
+      )
+    );
+
+  document.documentElement
+    .style
+    .setProperty(
+      "--pink",
+      `hsl(${hue} 92% 66%)`
+    );
+
+  document.documentElement
+    .style
+    .setProperty(
+      "--pink2",
+      `hsl(${hue} 88% 57%)`
+    );
+
+  document.documentElement
+    .style
+    .setProperty(
+      "--purple",
+      `hsl(${(hue + 54) % 360} 78% 70%)`
+    );
+
+  document.body.style.background = `
+    radial-gradient(
+      circle at 8% 8%,
+      hsla(220, 88%, ${Math.min(78, light + 8)}%, ${blueAlpha}),
+      transparent 34%
+    ),
+    radial-gradient(
+      circle at 88% 13%,
+      hsla(182, 78%, ${Math.min(76, light + 5)}%, .34),
+      transparent 31%
+    ),
+    radial-gradient(
+      circle at 82% 78%,
+      hsla(${hue}, 91%, ${Math.min(78, light + 9)}%, ${pinkAlpha}),
+      transparent 38%
+    ),
+    radial-gradient(
+      circle at 18% 92%,
+      hsla(${(hue + 58) % 360}, 78%, ${Math.min(76, light + 8)}%, .42),
+      transparent 35%
+    ),
+    linear-gradient(
+      135deg,
+      hsl(225 42% ${baseL}%),
+      hsl(${(hue + 32) % 360} 31% ${secondL}%)
+    )
+  `;
+}
+
+function initThemeControls() {
+
+  if ($("#themeControlFab"))
+    return;
+
+  const settings =
+    loadThemeSettings();
+
+  document.body.insertAdjacentHTML(
+    "beforeend",
+    `
+      <button
+        id="themeControlFab"
+        class="theme-control-fab"
+        aria-label="تنظیم رنگ و ظاهر"
+        title="تنظیم رنگ و ظاهر"
+      >
+        ◐
+      </button>
+
+      <div
+        id="themeControlPanel"
+        class="theme-control-panel hidden"
+      >
+
+        <div class="theme-control-head">
+          <div>
+            <b>ظاهر پلتفرم</b>
+            <span>تغییرات را همان لحظه ببینید</span>
+          </div>
+
+          <button
+            id="themeControlClose"
+            type="button"
+          >
+            ×
+          </button>
+        </div>
+
+        <label class="theme-range">
+          <div>
+            <span>روشنایی پس‌زمینه</span>
+            <b id="themeLightValue">
+              ${faNum(settings.light)}
+            </b>
+          </div>
+
+          <input
+            id="themeLight"
+            type="range"
+            min="35"
+            max="78"
+            value="${settings.light}"
+          >
+        </label>
+
+        <label class="theme-range">
+          <div>
+            <span>شدت صورتی</span>
+            <b id="themePinkValue">
+              ${faNum(settings.pink)}
+            </b>
+          </div>
+
+          <input
+            id="themePink"
+            type="range"
+            min="0"
+            max="100"
+            value="${settings.pink}"
+          >
+        </label>
+
+        <label class="theme-range">
+          <div>
+            <span>طیف رنگی</span>
+            <b id="themeHueValue">
+              ${faNum(settings.hue)}
+            </b>
+          </div>
+
+          <input
+            id="themeHue"
+            type="range"
+            min="280"
+            max="355"
+            value="${settings.hue}"
+          >
+        </label>
+
+        <div class="theme-preset-row">
+
+          <button
+            type="button"
+            data-theme-preset="soft"
+          >
+            صورتی روشن
+          </button>
+
+          <button
+            type="button"
+            data-theme-preset="balanced"
+          >
+            متعادل
+          </button>
+
+          <button
+            type="button"
+            data-theme-preset="deep"
+          >
+            پررنگ
+          </button>
+
+        </div>
+
+      </div>
+    `
+  );
+
+  const panel =
+    $("#themeControlPanel");
+
+  const light =
+    $("#themeLight");
+
+  const pink =
+    $("#themePink");
+
+  const hue =
+    $("#themeHue");
+
+  function readAndApply() {
+
+    const next = {
+      light:Number(light.value),
+      pink:Number(pink.value),
+      hue:Number(hue.value)
+    };
+
+    $("#themeLightValue").textContent =
+      faNum(next.light);
+
+    $("#themePinkValue").textContent =
+      faNum(next.pink);
+
+    $("#themeHueValue").textContent =
+      faNum(next.hue);
+
+    applyTheme(next);
+    saveThemeSettings(next);
+  }
+
+  applyTheme(settings);
+
+  $("#themeControlFab").onclick =
+    () =>
+      panel.classList.toggle(
+        "hidden"
+      );
+
+  $("#themeControlClose").onclick =
+    () =>
+      panel.classList.add(
+        "hidden"
+      );
+
+  [light,pink,hue]
+    .forEach(
+      input =>
+        input.addEventListener(
+          "input",
+          readAndApply
+        )
+    );
+
+  $$("[data-theme-preset]")
+    .forEach(button => {
+
+      button.onclick = () => {
+
+        const preset =
+          button.dataset.themePreset;
+
+        const values = {
+          soft:{
+            light:70,
+            pink:76,
+            hue:326
+          },
+          balanced:{
+            light:58,
+            pink:66,
+            hue:322
+          },
+          deep:{
+            light:45,
+            pink:84,
+            hue:318
+          }
+        }[preset];
+
+        if (!values)
+          return;
+
+        light.value =
+          values.light;
+
+        pink.value =
+          values.pink;
+
+        hue.value =
+          values.hue;
+
+        readAndApply();
+      };
+    });
+}
+
+
+/* =========================================================
    SAFE API
 ========================================================= */
 
@@ -540,6 +912,170 @@ async function loadAll(
 
 
 /* =========================================================
+   FINAL CUSTOMERS
+   Only paid/final customers are shown in the Customers page.
+========================================================= */
+
+function finalCustomers() {
+
+  const groups =
+    new Map();
+
+  approvedPayments()
+    .forEach(payment => {
+
+      const lead =
+        state.leads.find(
+          l =>
+            String(l.lead_id) ===
+            String(payment.lead_id)
+        );
+
+      const student =
+        state.students.find(
+          s =>
+            String(s.student_id) ===
+            String(payment.student_id) ||
+            (
+              payment.lead_id &&
+              String(s.lead_id) ===
+              String(payment.lead_id)
+            )
+        );
+
+      const key =
+        payment.student_id
+          ? `student:${payment.student_id}`
+          : payment.lead_id
+            ? `lead:${payment.lead_id}`
+            : `payment:${payment.payment_id}`;
+
+      if (!groups.has(key)) {
+
+        groups.set(
+          key,
+          {
+            key,
+            lead_id:
+              lead?.lead_id ||
+              payment.lead_id ||
+              "",
+            student_id:
+              student?.student_id ||
+              payment.student_id ||
+              "",
+            full_name:
+              lead?.full_name ||
+              student?.full_name ||
+              payment.full_name ||
+              "مشتری",
+            mobile:
+              lead?.mobile ||
+              student?.mobile ||
+              payment.mobile ||
+              "",
+            course_id:
+              payment.course_id ||
+              lead?.course_id ||
+              student?.course_id ||
+              "",
+            source:
+              lead?.source ||
+              "",
+            notes:
+              lead?.notes ||
+              student?.notes ||
+              "",
+            university:
+              student?.university ||
+              "",
+            field_of_study:
+              student?.field_of_study ||
+              "",
+            semester:
+              student?.semester ||
+              "",
+            total_paid:0,
+            payment_count:0,
+            latest_payment:"",
+            first_payment:"",
+            payments:[]
+          }
+        );
+      }
+
+      const item =
+        groups.get(key);
+
+      item.total_paid +=
+        Number(payment.amount || 0);
+
+      item.payment_count += 1;
+
+      item.payments.push(payment);
+
+      const pd =
+        payment.payment_date ||
+        payment.created_at ||
+        "";
+
+      if (
+        !item.latest_payment ||
+        String(pd) >
+        String(item.latest_payment)
+      ) {
+        item.latest_payment = pd;
+        item.course_id =
+          payment.course_id ||
+          item.course_id;
+      }
+
+      if (
+        !item.first_payment ||
+        String(pd) <
+        String(item.first_payment)
+      ) {
+        item.first_payment = pd;
+      }
+    });
+
+  return [
+    ...groups.values()
+  ].sort(
+    (a,b) =>
+      String(
+        b.latest_payment || ""
+      ).localeCompare(
+        String(
+          a.latest_payment || ""
+        )
+      )
+  );
+}
+
+
+function customerByKey(key) {
+  return finalCustomers()
+    .find(
+      c =>
+        String(c.key) ===
+        String(key)
+    );
+}
+
+
+function finalCustomerRevenue() {
+  return approvedPayments()
+    .reduce(
+      (sum,p) =>
+        sum +
+        Number(p.amount || 0),
+      0
+    );
+}
+
+
+/* =========================================================
    NAVIGATION
 ========================================================= */
 
@@ -649,32 +1185,34 @@ function render() {
 
 
 /* =========================================================
-   TODAY
+   TODAY / OPERATIONS
 ========================================================= */
 
 function renderToday() {
 
   title(
     "امروز",
-    "مرکز عملیات روزانه آکادمی"
+    "نمای سریع عملیات آکادمی"
   );
 
-  const d =
-    state.dashboard || {};
+  const customers =
+    finalCustomers();
 
-  const today =
-    d.today_followups || [];
+  const revenue =
+    finalCustomerRevenue();
 
-  const overdue =
-    d.overdue_followups || [];
+  const activeCourses =
+    state.courses.filter(
+      c =>
+        c.status === "active"
+    ).length;
 
-  const waiting =
-    state.leads.filter(
-      x =>
-        x.status ===
-        "awaiting_payment"
-    );
+  const lowStock =
+    inventoryTotals()
+      .lowStock;
 
+  const recent =
+    customers.slice(0,6);
 
   $("#content").innerHTML = `
 
@@ -687,14 +1225,14 @@ function renderToday() {
         </span>
 
         <h1>
-          امروز چه چیزی نیاز به توجه دارد؟
+          مدیریت ساده آکادمی،
+          بدون پیچیدگی CRM
         </h1>
 
         <p>
-          ${faNum(today.length)}
-          پیگیری امروز و
-          ${faNum(overdue.length)}
-          پیگیری عقب‌افتاده دارید.
+          فقط مشتری نهایی،
+          دوره، پرداخت،
+          هزینه و انبار.
         </p>
 
       </div>
@@ -703,7 +1241,7 @@ function renderToday() {
         data-action="newLead"
         class="hero-add"
       >
-        ＋ ثبت متقاضی
+        ＋ ثبت مشتری نهایی
       </button>
 
     </section>
@@ -712,43 +1250,46 @@ function renderToday() {
     <div class="kpi-grid">
 
       <div class="kpi">
-        <span>کل متقاضیان</span>
+        <span>مشتریان نهایی</span>
         <strong>
-          ${faNum(
-            d.total_leads ??
-            state.leads.length
-          )}
+          ${faNum(customers.length)}
         </strong>
-        <small>CRM</small>
+        <small>دارای ثبت پرداخت</small>
       </div>
-
-
-      <div class="kpi warning">
-        <span>پیگیری امروز</span>
-        <strong>
-          ${faNum(today.length)}
-        </strong>
-        <small>نیازمند اقدام</small>
-      </div>
-
-
-      <div class="kpi danger">
-        <span>عقب‌افتاده</span>
-        <strong>
-          ${faNum(overdue.length)}
-        </strong>
-        <small>اولویت بالا</small>
-      </div>
-
 
       <div class="kpi success">
-        <span>نرخ تبدیل</span>
+        <span>درآمد وصول‌شده</span>
         <strong>
-          ${faNum(
-            d.conversion_rate || 0
-          )}٪
+          ${money(revenue)}
         </strong>
-        <small>ثبت‌نام قطعی</small>
+        <small>
+          ${faNum(
+            approvedPayments().length
+          )}
+          پرداخت
+        </small>
+      </div>
+
+      <div class="kpi">
+        <span>دوره‌های فعال</span>
+        <strong>
+          ${faNum(activeCourses)}
+        </strong>
+        <small>در حال مدیریت</small>
+      </div>
+
+      <div class="kpi ${
+        lowStock
+          ? "danger"
+          : "success"
+      }">
+        <span>هشدار موجودی</span>
+        <strong>
+          ${faNum(lowStock)}
+        </strong>
+        <small>
+          کالا در نقطه سفارش
+        </small>
       </div>
 
     </div>
@@ -761,29 +1302,92 @@ function renderToday() {
         <div class="panel-head">
 
           <div>
-            <h3>کارهای امروز</h3>
+            <h3>
+              آخرین مشتریان ثبت‌شده
+            </h3>
+
             <p>
-              پیگیری‌هایی که باید انجام شوند
+              مشتریانی که پرداخت دارند
             </p>
           </div>
 
           <span class="count">
-            ${faNum(
-              today.length +
-              overdue.length
-            )}
+            ${faNum(recent.length)}
           </span>
 
         </div>
 
         ${
-          leadList(
-            [
-              ...overdue,
-              ...today
-            ].slice(0, 8),
-            true
-          )
+          recent.length
+            ? `
+              <div class="lead-list">
+
+                ${
+                  recent.map(c => `
+                    <button
+                      class="lead-row"
+                      data-customer="${esc(c.key)}"
+                    >
+
+                      <div class="avatar">
+                        ${esc(
+                          String(
+                            c.full_name || "?"
+                          ).trim()[0] || "?"
+                        )}
+                      </div>
+
+                      <div class="lead-main">
+
+                        <b>
+                          ${esc(c.full_name)}
+                        </b>
+
+                        <span>
+                          ${esc(
+                            courseName(
+                              c.course_id
+                            ) || "بدون دوره"
+                          )}
+                          ·
+                          ${esc(c.mobile)}
+                        </span>
+
+                      </div>
+
+                      <div class="lead-end">
+
+                        <b>
+                          ${money(
+                            c.total_paid
+                          )}
+                        </b>
+
+                        <small>
+                          ${dateFa(
+                            c.latest_payment
+                          )}
+                        </small>
+
+                      </div>
+
+                    </button>
+                  `).join("")
+                }
+
+              </div>
+            `
+            : `
+              <div class="empty">
+                <b>
+                  هنوز مشتری نهایی ثبت نشده
+                </b>
+                <span>
+                  با ثبت اولین مشتری و پرداخت،
+                  این بخش پر می‌شود.
+                </span>
+              </div>
+            `
         }
 
       </section>
@@ -794,57 +1398,57 @@ function renderToday() {
         <div class="panel-head">
 
           <div>
-            <h3>منتظر پرداخت</h3>
+            <h3>میانبرها</h3>
             <p>
-              فرصت‌های نزدیک به ثبت‌نام
+              عملیات پرتکرار آکادمی
             </p>
           </div>
 
-          <span class="count">
-            ${faNum(waiting.length)}
-          </span>
-
         </div>
 
-        ${
-          leadList(
-            waiting.slice(0, 8),
-            false
-          )
-        }
+        <div class="quick-ops-grid">
+
+          <button
+            class="quick-op"
+            data-action="newLead"
+          >
+            <b>＋</b>
+            <span>مشتری نهایی</span>
+          </button>
+
+          <button
+            class="quick-op"
+            data-action="newCourse"
+          >
+            <b>▣</b>
+            <span>دوره جدید</span>
+          </button>
+
+          <button
+            class="quick-op"
+            data-action="newExpense"
+          >
+            <b>−</b>
+            <span>ثبت هزینه</span>
+          </button>
+
+          <button
+            class="quick-op"
+            data-action="newPurchase"
+          >
+            <b>◫</b>
+            <span>خرید انبار</span>
+          </button>
+
+        </div>
 
       </section>
 
     </div>
-
-
-    <section class="panel finance-strip">
-
-      <div>
-        <span>درآمد تأییدشده</span>
-        <strong>
-          ${money(d.revenue)}
-        </strong>
-      </div>
-
-      <div>
-        <span>هزینه</span>
-        <strong>
-          ${money(d.expenses)}
-        </strong>
-      </div>
-
-      <div>
-        <span>سود</span>
-        <strong>
-          ${money(d.profit)}
-        </strong>
-      </div>
-
-    </section>
   `;
 
   bindActions();
+  bindCustomerClicks();
 }
 
 
@@ -1024,55 +1628,77 @@ function courseName(id) {
 
 
 /* =========================================================
-   LEADS PAGE
+   CUSTOMERS — FINAL / PAID ONLY
 ========================================================= */
 
 function renderLeads() {
 
   title(
     "مشتریان",
-    "Pipeline فروش و پیگیری متقاضیان"
+    "فقط مشتریان نهایی که ثبت پرداخت دارند"
   );
 
-  const groups =
-    Object.keys(statusMap);
+  const customers =
+    finalCustomers();
 
+  const totalPaid =
+    customers.reduce(
+      (sum,c) =>
+        sum +
+        Number(c.total_paid || 0),
+      0
+    );
 
-  const leadStats = {
-    total: state.leads.length,
-    hot: state.leads.filter(x =>
-      ["interested", "payment_info_sent", "awaiting_payment"].includes(x.status)
-    ).length,
-    paid: state.leads.filter(x =>
-      ["paid", "registered"].includes(x.status)
-    ).length,
-    lost: state.leads.filter(x => x.status === "lost").length
-  };
+  const avgPaid =
+    customers.length
+      ? Math.round(
+          totalPaid /
+          customers.length
+        )
+      : 0;
 
   $("#content").innerHTML = `
 
     <div class="kpi-grid" style="margin-top:0;margin-bottom:14px">
+
       <div class="kpi">
-        <span>کل متقاضیان</span>
-        <strong>${faNum(leadStats.total)}</strong>
-        <small>بانک مشتریان</small>
+        <span>مشتریان نهایی</span>
+        <strong>
+          ${faNum(customers.length)}
+        </strong>
+        <small>
+          فقط پرداخت‌شده‌ها
+        </small>
       </div>
-      <div class="kpi warning">
-        <span>فرصت‌های داغ</span>
-        <strong>${faNum(leadStats.hot)}</strong>
-        <small>نیازمند پیگیری فروش</small>
-      </div>
+
       <div class="kpi success">
-        <span>پرداخت / ثبت‌نام</span>
-        <strong>${faNum(leadStats.paid)}</strong>
-        <small>تبدیل‌شده</small>
+        <span>جمع دریافتی</span>
+        <strong>
+          ${money(totalPaid)}
+        </strong>
+        <small>از این مشتریان</small>
       </div>
-      <div class="kpi danger">
-        <span>از دست رفته</span>
-        <strong>${faNum(leadStats.lost)}</strong>
-        <small>نیازمند تحلیل علت</small>
+
+      <div class="kpi">
+        <span>میانگین پرداخت مشتری</span>
+        <strong>
+          ${money(avgPaid)}
+        </strong>
+        <small>Average Customer Value</small>
       </div>
+
+      <div class="kpi">
+        <span>تعداد پرداخت‌ها</span>
+        <strong>
+          ${faNum(
+            approvedPayments().length
+          )}
+        </strong>
+        <small>تراکنش ثبت‌شده</small>
+      </div>
+
     </div>
+
 
     <div class="toolbar">
 
@@ -1081,141 +1707,637 @@ function renderLeads() {
         <span>⌕</span>
 
         <input
-          id="leadSearch"
-          placeholder="جستجو نام یا موبایل..."
+          id="customerSearch"
+          placeholder="جستجو نام، موبایل یا دوره..."
         >
 
       </div>
-
 
       <button
         class="primary"
         data-action="newLead"
       >
-        ＋ مشتری جدید
+        ＋ ثبت مشتری نهایی
       </button>
 
     </div>
 
 
-    <div class="pipeline">
+    <section class="panel">
 
-      ${
-        groups.map(
-          status => {
+      <div id="customerList">
 
-            const list =
-              state.leads.filter(
-                x =>
-                  x.status ===
-                  status
-              );
-
-            return `
-              <section class="pipe">
-
-                <div class="pipe-head">
-
-                  <span
-                    class="dot ${
-                      statusClass[
-                        status
-                      ]
-                    }"
-                  ></span>
-
-                  <b>
-                    ${statusMap[status]}
-                  </b>
-
-                  <em>
-                    ${faNum(list.length)}
-                  </em>
-
-                </div>
-
-
-                <div class="pipe-body">
-
-                  ${
-                    list.length
-                      ? list
-                          .map(leadCard)
-                          .join("")
-                      : `
-                        <div class="pipe-empty">
-                          موردی نیست
-                        </div>
-                      `
-                  }
-
-                </div>
-
-              </section>
-            `;
-          }
-        ).join("")
-      }
-
-    </div>
-
-
-    <section class="panel mobile-leads">
-
-      <div id="mobileLeadList">
         ${
-          leadList(
-            state.leads,
-            false
+          renderCustomerList(
+            customers
           )
         }
+
       </div>
 
     </section>
   `;
 
 
-  const search =
-    $("#leadSearch");
-
-  if (search) {
-
-    search.oninput = e => {
+  $("#customerSearch")
+    .oninput = e => {
 
       const q =
-        e.target.value
+        String(
+          e.target.value || ""
+        )
           .trim()
           .toLowerCase();
 
       const filtered =
-        state.leads.filter(
-          x =>
-            (
-              String(
-                x.full_name || ""
-              ) +
-              " " +
-              String(
-                x.mobile || ""
-              )
-            )
-            .toLowerCase()
-            .includes(q)
-        );
+        customers.filter(c => {
 
-      $("#mobileLeadList")
+          const haystack =
+            [
+              c.full_name,
+              c.mobile,
+              courseName(
+                c.course_id
+              )
+            ]
+              .join(" ")
+              .toLowerCase();
+
+          return haystack.includes(q);
+        });
+
+      $("#customerList")
         .innerHTML =
-          leadList(
-            filtered,
-            false
+          renderCustomerList(
+            filtered
           );
 
-      bindLeadClicks();
+      bindCustomerClicks();
     };
-  }
 
 
   bindActions();
+  bindCustomerClicks();
+}
+
+
+function renderCustomerList(customers) {
+
+  if (!customers.length) {
+
+    return `
+      <div class="empty">
+        <b>
+          هنوز مشتری نهایی ثبت نشده
+        </b>
+        <span>
+          فقط مشتریانی که پرداخت دارند
+          در این صفحه نمایش داده می‌شوند.
+        </span>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="lead-list">
+
+      ${
+        customers.map(c => `
+
+          <button
+            class="lead-row customer-final-row"
+            data-customer="${esc(c.key)}"
+          >
+
+            <div class="avatar">
+              ${esc(
+                String(
+                  c.full_name || "?"
+                ).trim()[0] || "?"
+              )}
+            </div>
+
+            <div class="lead-main">
+
+              <b>
+                ${esc(c.full_name)}
+              </b>
+
+              <span>
+                ${esc(c.mobile || "بدون موبایل")}
+                ·
+                ${esc(
+                  courseName(
+                    c.course_id
+                  ) || "بدون دوره"
+                )}
+              </span>
+
+            </div>
+
+            <div class="lead-end">
+
+              <b>
+                ${money(c.total_paid)}
+              </b>
+
+              <small>
+                ${faNum(c.payment_count)}
+                پرداخت
+                ·
+                ${dateFa(
+                  c.latest_payment
+                )}
+              </small>
+
+            </div>
+
+          </button>
+
+        `).join("")
+      }
+
+    </div>
+  `;
+}
+
+
+function bindCustomerClicks() {
+
+  $$("[data-customer]")
+    .forEach(button => {
+
+      button.onclick =
+        () =>
+          openCustomer(
+            button.dataset.customer
+          );
+    });
+}
+
+
+function openCustomer(key) {
+
+  const customer =
+    customerByKey(key);
+
+  if (!customer)
+    return;
+
+  modal(`
+
+    <div class="profile-head">
+
+      <div class="avatar xl">
+        ${esc(
+          String(
+            customer.full_name || "?"
+          )[0] || "?"
+        )}
+      </div>
+
+      <div>
+
+        <span class="badge green">
+          مشتری نهایی
+        </span>
+
+        <h2>
+          ${esc(
+            customer.full_name
+          )}
+        </h2>
+
+        <a
+          href="tel:${esc(
+            customer.mobile
+          )}"
+        >
+          ${esc(
+            customer.mobile ||
+            "بدون شماره"
+          )}
+        </a>
+
+      </div>
+
+    </div>
+
+
+    <div class="profile-info" style="margin-top:18px">
+
+      <div>
+        <span>دوره</span>
+        <b>
+          ${esc(
+            courseName(
+              customer.course_id
+            ) || "—"
+          )}
+        </b>
+      </div>
+
+      <div>
+        <span>جمع پرداخت</span>
+        <b>
+          ${money(
+            customer.total_paid
+          )}
+        </b>
+      </div>
+
+      <div>
+        <span>تعداد پرداخت</span>
+        <b>
+          ${faNum(
+            customer.payment_count
+          )}
+        </b>
+      </div>
+
+      <div>
+        <span>آخرین پرداخت</span>
+        <b>
+          ${dateFa(
+            customer.latest_payment
+          )}
+        </b>
+      </div>
+
+      <div>
+        <span>دانشگاه</span>
+        <b>
+          ${esc(
+            customer.university ||
+            "—"
+          )}
+        </b>
+      </div>
+
+      <div>
+        <span>رشته / ترم</span>
+        <b>
+          ${esc(
+            [
+              customer.field_of_study,
+              customer.semester
+            ]
+              .filter(Boolean)
+              .join(" / ") ||
+            "—"
+          )}
+        </b>
+      </div>
+
+    </div>
+
+
+    <section class="panel" style="margin-top:16px">
+
+      <div class="panel-head">
+        <div>
+          <h3>پرداخت‌های مشتری</h3>
+          <p>
+            سوابق مالی این مشتری
+          </p>
+        </div>
+      </div>
+
+      <div class="lead-list">
+
+        ${
+          customer.payments
+            .slice()
+            .reverse()
+            .map(p => `
+
+              <button
+                class="lead-row"
+                data-customer-payment="${esc(
+                  p.payment_id
+                )}"
+              >
+
+                <div class="avatar">
+                  +
+                </div>
+
+                <div class="lead-main">
+                  <b>
+                    ${money(p.amount)}
+                  </b>
+                  <span>
+                    ${esc(
+                      courseName(
+                        p.course_id
+                      ) || "بدون دوره"
+                    )}
+                  </span>
+                </div>
+
+                <div class="lead-end">
+                  <small>
+                    ${dateFa(
+                      p.payment_date ||
+                      p.created_at
+                    )}
+                  </small>
+                </div>
+
+              </button>
+
+            `).join("")
+        }
+
+      </div>
+
+    </section>
+
+
+    <div class="profile-actions customer-actions">
+
+      <button
+        id="editFinalCustomerBtn"
+        class="secondary glass-button"
+      >
+        ویرایش مشتری
+      </button>
+
+      <button
+        id="addCustomerPaymentBtn"
+        class="primary"
+      >
+        ＋ پرداخت جدید
+      </button>
+
+      <button
+        id="deleteFinalCustomerBtn"
+        class="danger-action"
+      >
+        حذف مشتری
+      </button>
+
+    </div>
+  `);
+
+
+  $("#editFinalCustomerBtn")
+    .onclick =
+      () =>
+        editFinalCustomer(
+          customer
+        );
+
+
+  $("#addCustomerPaymentBtn")
+    .onclick =
+      () => {
+
+        const pseudoLead = {
+          lead_id:
+            customer.lead_id,
+          course_id:
+            customer.course_id
+        };
+
+        newPayment(
+          pseudoLead,
+          state.courses.find(
+            c =>
+              String(c.course_id) ===
+              String(
+                customer.course_id
+              )
+          ) || null
+        );
+      };
+
+
+  $("#deleteFinalCustomerBtn")
+    .onclick =
+      () =>
+        deleteFinalCustomer(
+          customer
+        );
+
+
+  $$("[data-customer-payment]")
+    .forEach(button => {
+
+      button.onclick = () => {
+
+        const inv =
+          buildInvoices()
+            .find(
+              x =>
+                String(
+                  x.payment_id
+                ) ===
+                String(
+                  button.dataset.customerPayment
+                )
+            );
+
+        if (inv)
+          openInvoice(
+            inv.invoice_id
+          );
+      };
+    });
+}
+
+
+function editFinalCustomer(customer) {
+
+  modal(`
+
+    <div class="modal-title">
+      <span>CUSTOMER</span>
+      <h2>ویرایش مشتری</h2>
+      <p>
+        تمام اطلاعات اختیاری هستند.
+      </p>
+    </div>
+
+    <form
+      id="editFinalCustomerForm"
+      class="form-grid"
+    >
+
+      ${formField(
+        "نام و نام خانوادگی",
+        "full_name",
+        "text",
+        "",
+        customer.full_name || ""
+      )}
+
+      ${formField(
+        "شماره موبایل",
+        "mobile",
+        "tel",
+        'inputmode="tel"',
+        customer.mobile || ""
+      )}
+
+      ${selectField(
+        "دوره",
+        "course_id",
+        `
+          <option value="">
+            بدون دوره
+          </option>
+
+          ${
+            state.courses.map(c => `
+              <option
+                value="${esc(c.course_id)}"
+                ${
+                  String(c.course_id) ===
+                  String(
+                    customer.course_id ||
+                    ""
+                  )
+                    ? "selected"
+                    : ""
+                }
+              >
+                ${esc(c.course_name)}
+              </option>
+            `).join("")
+          }
+        `
+      )}
+
+      ${formField(
+        "دانشگاه",
+        "university",
+        "text",
+        "",
+        customer.university || ""
+      )}
+
+      ${formField(
+        "رشته تحصیلی",
+        "field_of_study",
+        "text",
+        "",
+        customer.field_of_study || ""
+      )}
+
+      ${formField(
+        "ترم",
+        "semester",
+        "text",
+        "",
+        customer.semester || ""
+      )}
+
+      ${formField(
+        "منبع آشنایی",
+        "source",
+        "text",
+        "",
+        customer.source || ""
+      )}
+
+      <label class="field full">
+        <span>یادداشت</span>
+        <textarea
+          name="notes"
+          rows="4"
+        >${esc(
+          customer.notes || ""
+        )}</textarea>
+      </label>
+
+      <button
+        class="primary full submit"
+        type="submit"
+      >
+        ذخیره تغییرات
+      </button>
+
+    </form>
+  `);
+
+
+  $("#editFinalCustomerForm")
+    .onsubmit =
+      async e => {
+
+        e.preventDefault();
+
+        await submitPost(
+          "updateFinalCustomer",
+          {
+            ...formDataObject(
+              e.target
+            ),
+            lead_id:
+              customer.lead_id,
+            student_id:
+              customer.student_id
+          },
+          "اطلاعات مشتری ویرایش شد"
+        );
+      };
+}
+
+
+async function deleteFinalCustomer(
+  customer
+) {
+
+  if (
+    !confirm(
+      `مشتری «${
+        customer.full_name ||
+        "بدون نام"
+      }» و تمام پرداخت‌های او حذف شود؟`
+    )
+  ) {
+    return;
+  }
+
+  try {
+
+    loading(true);
+
+    const result =
+      await post(
+        "deleteFinalCustomer",
+        {
+          lead_id:
+            customer.lead_id,
+          student_id:
+            customer.student_id
+        }
+      );
+
+    if (!result.success)
+      throw new Error(
+        result.message ||
+        "حذف انجام نشد"
+      );
+
+    closeModal();
+    toast("مشتری حذف شد");
+
+    await loadAll(false);
+
+  } catch(error) {
+
+    toast(
+      error.message ||
+      "حذف مشتری انجام نشد",
+      true
+    );
+
+  } finally {
+
+    loading(false);
+  }
 }
 
 
@@ -1761,6 +2883,13 @@ function openCourse(id) {
     <div class="profile-actions" style="margin-top:14px">
 
       <button
+        id="editCourseBtn"
+        class="secondary glass-button"
+      >
+        ویرایش دوره
+      </button>
+
+      <button
         id="courseExpenseBtn"
         class="secondary glass-button"
       >
@@ -1789,6 +2918,13 @@ function openCourse(id) {
   if (paymentBtn)
     paymentBtn.onclick =
       () => newPayment(null, course);
+
+  const editBtn =
+    $("#editCourseBtn");
+
+  if (editBtn)
+    editBtn.onclick =
+      () => editCourse(course);
 }
 
 
@@ -2358,12 +3494,12 @@ function renderFinance() {
                             ${money(e.amount)}
                           </b>
 
-                          <small>
-                            ${dateFa(
-                              e.expense_date ||
-                              e.created_at
-                            )}
-                          </small>
+                          <button
+                            class="secondary glass-button mini-edit-btn"
+                            data-expense-edit="${esc(e.expense_id)}"
+                          >
+                            ویرایش
+                          </button>
 
                         </div>
 
@@ -2392,6 +3528,23 @@ function renderFinance() {
 
 
   bindActions();
+
+  $$("[data-expense-edit]")
+    .forEach(button => {
+      button.onclick = () => {
+        const expense =
+          state.expenses.find(
+            e =>
+              String(e.expense_id) ===
+              String(
+                button.dataset.expenseEdit
+              )
+          );
+
+        if (expense)
+          editExpense(expense);
+      };
+    });
 
   $$("[data-finance-course]")
     .forEach(
@@ -2638,6 +3791,9 @@ function renderInventory() {
                     <th style="padding:12px;text-align:right">
                       ارزش موجودی
                     </th>
+                    <th style="padding:12px;text-align:right">
+                      ویرایش
+                    </th>
                   </tr>
                 </thead>
 
@@ -2720,6 +3876,15 @@ function renderInventory() {
                                 )
                               )}
                             </b>
+                          </td>
+
+                          <td style="padding:12px">
+                            <button
+                              class="secondary glass-button mini-edit-btn"
+                              data-product-edit="${esc(p.product_id)}"
+                            >
+                              ویرایش
+                            </button>
                           </td>
                         </tr>
                       `;
@@ -2806,9 +3971,13 @@ function renderInventory() {
                               p.total_amount
                             )}
                           </b>
-                          <small>
-                            ${esc(p.purchase_id)}
-                          </small>
+
+                          <button
+                            class="secondary glass-button mini-edit-btn"
+                            data-purchase-edit="${esc(p.purchase_id)}"
+                          >
+                            ویرایش
+                          </button>
                         </div>
                       </div>
                     `)
@@ -2897,11 +4066,13 @@ function renderInventory() {
                                 c.total_cost
                               )}
                             </b>
-                            <small>
-                              ${dateFa(
-                                c.created_at
-                              )}
-                            </small>
+
+                            <button
+                              class="secondary glass-button mini-edit-btn"
+                              data-consumption-edit="${esc(c.consumption_id)}"
+                            >
+                              ویرایش
+                            </button>
                           </div>
                         </div>
                       `;
@@ -2926,6 +4097,345 @@ function renderInventory() {
   `;
 
   bindActions();
+
+  $$("[data-product-edit]")
+    .forEach(button => {
+      button.onclick = () => {
+        const product =
+          state.products.find(
+            p =>
+              String(p.product_id) ===
+              String(
+                button.dataset.productEdit
+              )
+          );
+
+        if (product)
+          editProduct(product);
+      };
+    });
+
+  $$("[data-purchase-edit]")
+    .forEach(button => {
+      button.onclick = () => {
+        const purchase =
+          state.purchases.find(
+            p =>
+              String(p.purchase_id) ===
+              String(
+                button.dataset.purchaseEdit
+              )
+          );
+
+        if (purchase)
+          editPurchase(purchase);
+      };
+    });
+
+  $$("[data-consumption-edit]")
+    .forEach(button => {
+      button.onclick = () => {
+        const item =
+          state.consumptions.find(
+            c =>
+              String(c.consumption_id) ===
+              String(
+                button.dataset.consumptionEdit
+              )
+          );
+
+        if (item)
+          editConsumption(item);
+      };
+    });
+}
+
+
+function editProduct(product) {
+
+  modal(`
+
+    <div class="modal-title">
+      <span>EDIT PRODUCT</span>
+      <h2>ویرایش کالا</h2>
+    </div>
+
+    <form
+      id="editProductForm"
+      class="form-grid"
+    >
+
+      ${formField(
+        "نام کالا",
+        "product_name",
+        "text",
+        "",
+        product.product_name || ""
+      )}
+
+      ${formField(
+        "کد / SKU",
+        "sku",
+        "text",
+        "",
+        product.sku || ""
+      )}
+
+      ${formField(
+        "واحد",
+        "unit",
+        "text",
+        "",
+        product.unit || ""
+      )}
+
+      ${formField(
+        "دسته‌بندی",
+        "category",
+        "text",
+        "",
+        product.category || ""
+      )}
+
+      ${formField(
+        "حداقل موجودی",
+        "min_stock",
+        "number",
+        "",
+        product.min_stock || ""
+      )}
+
+      <label class="field full">
+        <span>توضیحات</span>
+        <textarea
+          name="notes"
+          rows="3"
+        >${esc(
+          product.notes || ""
+        )}</textarea>
+      </label>
+
+      <button
+        class="primary full submit"
+        type="submit"
+      >
+        ذخیره تغییرات
+      </button>
+
+    </form>
+  `);
+
+  $("#editProductForm")
+    .onsubmit =
+      async e => {
+
+        e.preventDefault();
+
+        await submitPost(
+          "updateProduct",
+          {
+            ...formDataObject(
+              e.target
+            ),
+            product_id:
+              product.product_id
+          },
+          "کالا ویرایش شد"
+        );
+      };
+}
+
+
+function editPurchase(purchase) {
+
+  modal(`
+
+    <div class="modal-title">
+      <span>PURCHASE</span>
+      <h2>ویرایش اطلاعات فاکتور خرید</h2>
+      <p>
+        برای حفظ صحت موجودی،
+        تعداد و قیمت ردیف‌های خرید
+        بعد از ثبت گردش انبار
+        از این صفحه تغییر نمی‌کنند.
+      </p>
+    </div>
+
+    <form
+      id="editPurchaseForm"
+      class="form-grid"
+    >
+
+      ${formField(
+        "فروشنده",
+        "supplier",
+        "text",
+        "",
+        purchase.supplier || ""
+      )}
+
+      ${formField(
+        "شماره فاکتور",
+        "invoice_no",
+        "text",
+        "",
+        purchase.invoice_no || ""
+      )}
+
+      ${formField(
+        "تاریخ خرید",
+        "purchase_date",
+        "date",
+        "",
+        purchase.purchase_date
+          ? String(
+              purchase.purchase_date
+            ).slice(0,10)
+          : ""
+      )}
+
+      <label class="field full">
+        <span>توضیحات</span>
+        <textarea
+          name="notes"
+          rows="3"
+        >${esc(
+          purchase.notes || ""
+        )}</textarea>
+      </label>
+
+      <button
+        class="primary full submit"
+        type="submit"
+      >
+        ذخیره تغییرات
+      </button>
+
+    </form>
+  `);
+
+  $("#editPurchaseForm")
+    .onsubmit =
+      async e => {
+
+        e.preventDefault();
+
+        await submitPost(
+          "updatePurchase",
+          {
+            ...formDataObject(
+              e.target
+            ),
+            purchase_id:
+              purchase.purchase_id
+          },
+          "فاکتور خرید ویرایش شد"
+        );
+      };
+}
+
+
+function editConsumption(item) {
+
+  modal(`
+
+    <div class="modal-title">
+      <span>CONSUMPTION</span>
+      <h2>ویرایش مصرف دوره</h2>
+      <p>
+        مقدار و بهای مصرف پس از تخصیص موجودی
+        قفل است؛ تاریخ و توضیحات قابل ویرایش است.
+      </p>
+    </div>
+
+    <div class="profile-info" style="margin-bottom:14px">
+
+      <div>
+        <span>کالا</span>
+        <b>
+          ${esc(
+            item.product_name ||
+            "—"
+          )}
+        </b>
+      </div>
+
+      <div>
+        <span>تعداد</span>
+        <b>
+          ${faNum(
+            item.quantity
+          )}
+          ${esc(item.unit || "")}
+        </b>
+      </div>
+
+      <div>
+        <span>هزینه تخصیص‌یافته</span>
+        <b>
+          ${money(
+            item.total_cost
+          )}
+        </b>
+      </div>
+
+    </div>
+
+    <form
+      id="editConsumptionForm"
+      class="form-grid"
+    >
+
+      ${formField(
+        "تاریخ مصرف",
+        "consumption_date",
+        "date",
+        "",
+        item.consumption_date
+          ? String(
+              item.consumption_date
+            ).slice(0,10)
+          : ""
+      )}
+
+      <label class="field full">
+        <span>توضیحات</span>
+        <textarea
+          name="notes"
+          rows="3"
+        >${esc(
+          item.notes || ""
+        )}</textarea>
+      </label>
+
+      <button
+        class="primary full submit"
+        type="submit"
+      >
+        ذخیره تغییرات
+      </button>
+
+    </form>
+  `);
+
+  $("#editConsumptionForm")
+    .onsubmit =
+      async e => {
+
+        e.preventDefault();
+
+        await submitPost(
+          "updateConsumption",
+          {
+            ...formDataObject(
+              e.target
+            ),
+            consumption_id:
+              item.consumption_id
+          },
+          "مصرف دوره ویرایش شد"
+        );
+      };
 }
 
 
@@ -4322,117 +5832,356 @@ function printInvoice(inv) {
 
 function renderReports() {
 
-  title("گزارش مدیریتی","نمای اجرایی برای مدیریت و اعضای هیئت‌مدیره");
+  title(
+    "گزارش مدیریتی",
+    "فروش، سودآوری، دوره‌ها و انبار"
+  );
 
-  const payments = approvedPayments();
-  const revenue = sumAmount(payments);
-  const generalExpense = sumAmount(state.expenses);
+  const customers =
+    finalCustomers();
+
+  const revenue =
+    finalCustomerRevenue();
+
+  const generalExpense =
+    sumAmount(
+      state.expenses
+    );
+
   const inventoryConsumedCost =
-    sumConsumptionCost(state.consumptions);
-  const expense =
+    sumConsumptionCost(
+      state.consumptions
+    );
+
+  const totalExpense =
     generalExpense +
     inventoryConsumedCost;
-  const profit = revenue - expense;
-  const margin = revenue ? Math.round((profit / revenue) * 100) : 0;
 
-  const totalLeads = state.leads.length;
-  const registered = state.leads.filter(
-    l => l.status === "registered" || l.status === "paid"
-  ).length;
-  const conversion = totalLeads ? Math.round((registered / totalLeads) * 100) : 0;
+  const profit =
+    revenue -
+    totalExpense;
 
-  const rows = financeCourseRows();
-  const bestCourse = rows.length ? rows.slice().sort((a,b)=>b.profit-a.profit)[0] : null;
-  const mostSold = rows.length ? rows.slice().sort((a,b)=>b.registered-a.registered)[0] : null;
+  const margin =
+    revenue
+      ? Math.round(
+          profit /
+          revenue *
+          100
+        )
+      : 0;
 
-  const sourceMap = {};
-  state.leads.forEach(l => {
-    const s = l.source || l.lead_source || "نامشخص";
-    sourceMap[s] = (sourceMap[s] || 0) + 1;
-  });
-  const sources = Object.entries(sourceMap).sort((a,b)=>b[1]-a[1]);
-  const maxSource = Math.max(1,...sources.map(x=>x[1]));
+  const courseRows =
+    financeCourseRows();
 
-  const pipeline = Object.keys(statusMap).map(status => ({
-    status,
-    label: statusMap[status],
-    count: state.leads.filter(l=>l.status===status).length
-  }));
-  const maxPipeline = Math.max(1,...pipeline.map(x=>x.count));
+  const bestCourse =
+    courseRows.length
+      ? courseRows
+          .slice()
+          .sort(
+            (a,b) =>
+              b.profit -
+              a.profit
+          )[0]
+      : null;
+
+  const inventory =
+    inventoryTotals();
 
   $("#content").innerHTML = `
+
     <section class="hero">
+
       <div>
-        <span class="eyebrow">BOARD EXECUTIVE SUMMARY</span>
-        <h1>وضعیت کسب‌وکار آکادمی سینرژی</h1>
-        <p>نمای یکپارچه فروش، ثبت‌نام، درآمد و سودآوری</p>
+
+        <span class="eyebrow">
+          BOARD EXECUTIVE SUMMARY
+        </span>
+
+        <h1>
+          وضعیت کسب‌وکار آکادمی سینرژی
+        </h1>
+
+        <p>
+          تمرکز روی مشتری نهایی،
+          درآمد، هزینه، سود و موجودی
+        </p>
+
       </div>
-      <button id="printBoardReport" class="hero-add">چاپ گزارش</button>
+
+      <button
+        id="printBoardReport"
+        class="hero-add"
+      >
+        چاپ گزارش
+      </button>
+
     </section>
 
+
     <div class="kpi-grid">
-      <div class="kpi"><span>کل متقاضیان</span><strong>${faNum(totalLeads)}</strong><small>Lead Database</small></div>
-      <div class="kpi success"><span>ثبت‌نام / پرداخت</span><strong>${faNum(registered)}</strong><small>Conversion ${faNum(conversion)}٪</small></div>
-      <div class="kpi success"><span>درآمد</span><strong>${money(revenue)}</strong><small>وصول‌شده</small></div>
-      <div class="kpi ${profit>=0?"success":"danger"}"><span>سود خالص</span><strong>${money(profit)}</strong><small>Margin ${faNum(margin)}٪</small></div>
+
+      <div class="kpi">
+        <span>مشتریان نهایی</span>
+        <strong>
+          ${faNum(
+            customers.length
+          )}
+        </strong>
+        <small>دارای پرداخت</small>
+      </div>
+
+      <div class="kpi success">
+        <span>درآمد</span>
+        <strong>
+          ${money(revenue)}
+        </strong>
+        <small>وصول‌شده</small>
+      </div>
+
+      <div class="kpi danger">
+        <span>هزینه شناسایی‌شده</span>
+        <strong>
+          ${money(
+            totalExpense
+          )}
+        </strong>
+        <small>
+          عمومی + مصرف انبار
+        </small>
+      </div>
+
+      <div class="kpi ${
+        profit >= 0
+          ? "success"
+          : "danger"
+      }">
+        <span>سود خالص</span>
+        <strong>
+          ${money(profit)}
+        </strong>
+        <small>
+          Margin ${faNum(margin)}٪
+        </small>
+      </div>
+
     </div>
+
 
     <div class="two-col" style="margin-top:16px">
-      <section class="panel">
-        <div class="panel-head"><div><h3>قیف فروش</h3><p>توزیع متقاضیان در مراحل فروش</p></div></div>
-        <div style="display:grid;gap:12px">
-          ${pipeline.map(x=>`
-            <div>
-              <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>${esc(x.label)}</span><b>${faNum(x.count)}</b></div>
-              <div style="height:9px;background:rgba(255,255,255,.08);border-radius:999px;overflow:hidden">
-                <i style="display:block;height:100%;width:${Math.max(2,Math.round(x.count/maxPipeline*100))}%;background:currentColor;border-radius:inherit"></i>
-              </div>
-            </div>`).join("")}
-        </div>
-      </section>
 
       <section class="panel">
-        <div class="panel-head"><div><h3>منابع جذب مشتری</h3><p>کانال‌های ایجاد متقاضی</p></div></div>
-        ${sources.length ? `<div style="display:grid;gap:12px">${sources.slice(0,8).map(([s,n])=>`
+
+        <div class="panel-head">
           <div>
-            <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>${esc(s)}</span><b>${faNum(n)}</b></div>
-            <div style="height:9px;background:rgba(255,255,255,.08);border-radius:999px;overflow:hidden">
-              <i style="display:block;height:100%;width:${Math.max(3,Math.round(n/maxSource*100))}%;background:currentColor;border-radius:inherit"></i>
-            </div>
-          </div>`).join("")}</div>` :
-          `<div class="empty"><b>منبع جذب ثبت نشده</b><span>با ثبت Source تحلیل کانال‌ها فعال می‌شود.</span></div>`}
+            <h3>وضعیت دوره‌ها</h3>
+            <p>
+              درآمد و سود هر دوره
+            </p>
+          </div>
+        </div>
+
+        ${
+          courseRows.length
+            ? `
+              <div class="lead-list">
+
+                ${
+                  courseRows
+                    .slice(0,8)
+                    .map(row => `
+
+                      <button
+                        class="lead-row"
+                        data-board-course="${esc(
+                          row.course.course_id
+                        )}"
+                      >
+
+                        <div class="avatar">
+                          ▣
+                        </div>
+
+                        <div class="lead-main">
+                          <b>
+                            ${esc(
+                              row.course.course_name
+                            )}
+                          </b>
+                          <span>
+                            ${faNum(
+                              row.registered
+                            )}
+                            دانشجو
+                            ·
+                            درآمد
+                            ${money(
+                              row.revenue
+                            )}
+                          </span>
+                        </div>
+
+                        <div class="lead-end">
+                          <b>
+                            ${money(
+                              row.profit
+                            )}
+                          </b>
+                          <small>
+                            Margin
+                            ${faNum(
+                              row.margin
+                            )}٪
+                          </small>
+                        </div>
+
+                      </button>
+
+                    `).join("")
+                }
+
+              </div>
+            `
+            : `
+              <div class="empty">
+                <b>
+                  هنوز دوره‌ای وجود ندارد
+                </b>
+              </div>
+            `
+        }
+
       </section>
+
+
+      <section class="panel">
+
+        <div class="panel-head">
+          <div>
+            <h3>وضعیت انبار</h3>
+            <p>
+              موجودی و مصرف کالا
+            </p>
+          </div>
+        </div>
+
+        <div class="profile-info">
+
+          <div>
+            <span>ارزش موجودی</span>
+            <b>
+              ${money(
+                inventory.stockValue
+              )}
+            </b>
+          </div>
+
+          <div>
+            <span>هزینه مصرف‌شده</span>
+            <b>
+              ${money(
+                inventory.consumedValue
+              )}
+            </b>
+          </div>
+
+          <div>
+            <span>هشدار موجودی</span>
+            <b>
+              ${faNum(
+                inventory.lowStock
+              )}
+            </b>
+          </div>
+
+          <div>
+            <span>کالاهای تعریف‌شده</span>
+            <b>
+              ${faNum(
+                state.products.length
+              )}
+            </b>
+          </div>
+
+        </div>
+
+      </section>
+
     </div>
 
-    <div class="kpi-grid" style="margin-top:16px">
-      <div class="kpi"><span>دوره‌های فعال</span><strong>${faNum(state.courses.filter(c=>c.status==="active").length)}</strong><small>از ${faNum(state.courses.length)} دوره</small></div>
-      <div class="kpi success"><span>پرفروش‌ترین دوره</span><strong style="font-size:18px">${mostSold?esc(mostSold.course.course_name):"—"}</strong><small>${mostSold?faNum(mostSold.registered)+" دانشجو":"داده کافی نیست"}</small></div>
-      <div class="kpi success"><span>سودآورترین دوره</span><strong style="font-size:18px">${bestCourse?esc(bestCourse.course.course_name):"—"}</strong><small>${bestCourse?money(bestCourse.profit):"داده کافی نیست"}</small></div>
-      <div class="kpi danger"><span>کل هزینه</span><strong>${money(expense)}</strong><small>${faNum(state.expenses.length)} رکورد هزینه</small></div>
-    </div>
 
     <section class="panel" style="margin-top:16px">
-      <div class="panel-head"><div><h3>عملکرد دوره‌ها</h3><p>ثبت‌نام، ظرفیت، درآمد، هزینه و سود</p></div><span class="count">${faNum(rows.length)}</span></div>
-      ${rows.length ? `<div style="overflow:auto"><table style="width:100%;border-collapse:collapse;min-width:760px">
-        <thead><tr>
-          <th style="text-align:right;padding:12px">دوره</th><th style="text-align:right;padding:12px">ثبت‌نام</th>
-          <th style="text-align:right;padding:12px">ظرفیت</th><th style="text-align:right;padding:12px">درآمد</th>
-          <th style="text-align:right;padding:12px">هزینه</th><th style="text-align:right;padding:12px">سود</th>
-          <th style="text-align:right;padding:12px">Margin</th>
-        </tr></thead>
-        <tbody>${rows.map(x=>`<tr style="border-top:1px solid rgba(255,255,255,.08)">
-          <td style="padding:12px"><b>${esc(x.course.course_name)}</b></td>
-          <td style="padding:12px">${faNum(x.registered)}</td><td style="padding:12px">${faNum(x.capacity)}</td>
-          <td style="padding:12px">${money(x.revenue)}</td><td style="padding:12px">${money(x.cost)}</td>
-          <td style="padding:12px"><b>${money(x.profit)}</b></td>
-          <td style="padding:12px"><span class="badge ${x.margin>0?"green":x.margin<0?"red":"gray"}">${faNum(x.margin)}٪</span></td>
-        </tr>`).join("")}</tbody>
-      </table></div>` : `<div class="empty"><b>داده دوره‌ای وجود ندارد</b><span>با ثبت دوره‌ها گزارش تکمیل می‌شود.</span></div>`}
+
+      <div class="panel-head">
+
+        <div>
+          <h3>جمع‌بندی مدیریتی</h3>
+          <p>
+            مهم‌ترین شاخص‌های فعلی آکادمی
+          </p>
+        </div>
+
+      </div>
+
+      <div class="finance-strip">
+
+        <div>
+          <span>سودآورترین دوره</span>
+          <strong>
+            ${
+              bestCourse
+                ? esc(
+                    bestCourse.course
+                      .course_name
+                  )
+                : "—"
+            }
+          </strong>
+        </div>
+
+        <div>
+          <span>سود دوره برتر</span>
+          <strong>
+            ${
+              bestCourse
+                ? money(
+                    bestCourse.profit
+                  )
+                : money(0)
+            }
+          </strong>
+        </div>
+
+        <div>
+          <span>تعداد پرداخت</span>
+          <strong>
+            ${faNum(
+              approvedPayments()
+                .length
+            )}
+          </strong>
+        </div>
+
+      </div>
+
     </section>
   `;
 
-  const btn=$("#printBoardReport");
-  if(btn) btn.onclick=()=>window.print();
+
+  $("#printBoardReport")
+    .onclick =
+      () =>
+        window.print();
+
+
+  $$("[data-board-course]")
+    .forEach(button => {
+
+      button.onclick =
+        () =>
+          openCourse(
+            button.dataset.boardCourse
+          );
+    });
 }
 
 
@@ -4509,18 +6258,7 @@ function bindActions() {
 
 
 function bindLeadClicks() {
-
-  $$("[data-lead]")
-    .forEach(
-      button => {
-
-        button.onclick =
-          () =>
-            openLead(
-              button.dataset.lead
-            );
-      }
-    );
+  bindCustomerClicks();
 }
 
 
@@ -4643,73 +6381,88 @@ function newLead() {
 
     <div class="modal-title">
 
-      <span>NEW LEAD</span>
+      <span>FINAL CUSTOMER</span>
 
-      <h2>ثبت سریع متقاضی</h2>
+      <h2>
+        ثبت مشتری نهایی
+      </h2>
 
       <p>
-        هیچ فیلدی اجباری نیست. فقط اطلاعاتی را که الان دارید وارد کنید.
+        اینجا فقط مشتریانی را ثبت کنید
+        که پرداخت / واریز وجه داشته‌اند.
+        همه فیلدها اختیاری هستند.
       </p>
 
     </div>
 
 
     <form
-      id="leadForm"
+      id="finalCustomerForm"
       class="form-grid"
     >
 
-      ${
-        formField(
-          "نام و نام خانوادگی",
-          "full_name"
-        )
-      }
+      ${formField(
+        "نام و نام خانوادگی",
+        "full_name"
+      )}
 
-      ${
-        formField(
-          "شماره موبایل",
-          "mobile",
-          "tel",
-          'inputmode="tel"'
-        )
-      }
+      ${formField(
+        "شماره موبایل",
+        "mobile",
+        "tel",
+        'inputmode="tel"'
+      )}
 
+      ${selectField(
+        "دوره",
+        "course_id",
+        `
+          <option value="">
+            بدون دوره
+          </option>
 
-      ${
-        selectField(
-          "دوره موردنظر",
-          "course_id",
-          `
-            <option value="">فعلاً مشخص نیست</option>
-            ${
-              state.courses.map(c => `
-                <option value="${esc(c.course_id)}">
-                  ${esc(c.course_name)}
-                </option>
-              `).join("")
-            }
-          `
-        )
-      }
+          ${
+            state.courses.map(c => `
+              <option value="${esc(
+                c.course_id
+              )}">
+                ${esc(c.course_name)}
+              </option>
+            `).join("")
+          }
+        `
+      )}
 
+      ${formField(
+        "مبلغ واریزی",
+        "amount",
+        "number"
+      )}
 
-      ${
-        selectField(
-          "منبع آشنایی",
-          "source",
-          `
-            <option value="">مشخص نیست</option>
-            <option>Instagram</option>
-            <option>Telegram</option>
-            <option>University</option>
-            <option>Referral</option>
-            <option>Website</option>
-            <option>Other</option>
-          `
-        )
-      }
+      ${selectField(
+        "روش پرداخت",
+        "payment_method",
+        `
+          <option value="">
+            مشخص نیست
+          </option>
+          <option>کارت به کارت</option>
+          <option>انتقال بانکی</option>
+          <option>نقدی</option>
+          <option>POS</option>
+        `
+      )}
 
+      ${formField(
+        "تاریخ پرداخت",
+        "payment_date",
+        "date"
+      )}
+
+      ${formField(
+        "شماره پیگیری",
+        "transaction_reference"
+      )}
 
       <details class="full optional-details">
 
@@ -4717,62 +6470,67 @@ function newLead() {
           اطلاعات تکمیلی اختیاری
         </summary>
 
-        <div class="form-grid optional-inner">
+        <div
+          class="form-grid optional-inner"
+        >
 
-          ${
-            formField(
-              "پیگیری بعدی",
-              "next_followup",
-              "datetime-local"
-            )
-          }
+          ${formField(
+            "دانشگاه",
+            "university"
+          )}
 
-          ${
-            formField(
-              "مبلغ مورد انتظار",
-              "expected_amount",
-              "number"
-            )
-          }
+          ${formField(
+            "رشته تحصیلی",
+            "field_of_study"
+          )}
+
+          ${formField(
+            "ترم",
+            "semester"
+          )}
+
+          ${formField(
+            "منبع آشنایی",
+            "source"
+          )}
 
           <label class="field full">
-
-            <span>یادداشت اولیه</span>
-
+            <span>یادداشت</span>
             <textarea
               name="notes"
               rows="3"
             ></textarea>
-
           </label>
 
         </div>
 
       </details>
 
-
       <button
         class="primary full submit"
         type="submit"
       >
-        ثبت متقاضی
+        ثبت مشتری + پرداخت
       </button>
 
     </form>
   `);
 
 
-  $("#leadForm").onsubmit =
-    async e => {
+  $("#finalCustomerForm")
+    .onsubmit =
+      async e => {
 
-      e.preventDefault();
+        e.preventDefault();
 
-      await submitPost(
-        "createLead",
-        formDataObject(e.target),
-        "مشتری ثبت شد"
-      );
-    };
+        await submitPost(
+          "createFinalCustomer",
+          formDataObject(
+            e.target
+          ),
+          "مشتری نهایی و پرداخت ثبت شد"
+        );
+      };
 }
 
 
@@ -4893,9 +6651,283 @@ function newCourse() {
 }
 
 
+function editCourse(course) {
+
+  modal(`
+
+    <div class="modal-title">
+      <span>EDIT COURSE</span>
+      <h2>ویرایش دوره</h2>
+      <p>
+        تمام فیلدها قابل ویرایش هستند.
+      </p>
+    </div>
+
+    <form
+      id="editCourseForm"
+      class="form-grid"
+    >
+
+      ${formField(
+        "نام دوره",
+        "course_name",
+        "text",
+        "",
+        course.course_name || ""
+      )}
+
+      ${formField(
+        "کد دوره",
+        "course_code",
+        "text",
+        "",
+        course.course_code || ""
+      )}
+
+      ${formField(
+        "دانشگاه همکار",
+        "partner_university",
+        "text",
+        "",
+        course.partner_university || ""
+      )}
+
+      ${formField(
+        "مدرس",
+        "instructor",
+        "text",
+        "",
+        course.instructor || ""
+      )}
+
+      ${formField(
+        "تاریخ شروع",
+        "start_date",
+        "date",
+        "",
+        course.start_date
+          ? String(
+              course.start_date
+            ).slice(0,10)
+          : ""
+      )}
+
+      ${formField(
+        "محل برگزاری",
+        "location",
+        "text",
+        "",
+        course.location || ""
+      )}
+
+      ${formField(
+        "ظرفیت",
+        "capacity",
+        "number",
+        "",
+        course.capacity || ""
+      )}
+
+      ${formField(
+        "قیمت",
+        "standard_price",
+        "number",
+        "",
+        course.standard_price || ""
+      )}
+
+      ${selectField(
+        "وضعیت",
+        "status",
+        `
+          <option
+            value="active"
+            ${
+              course.status === "active"
+                ? "selected"
+                : ""
+            }
+          >
+            فعال
+          </option>
+
+          <option
+            value="inactive"
+            ${
+              course.status === "inactive"
+                ? "selected"
+                : ""
+            }
+          >
+            غیرفعال
+          </option>
+
+          <option
+            value="completed"
+            ${
+              course.status === "completed"
+                ? "selected"
+                : ""
+            }
+          >
+            پایان‌یافته
+          </option>
+        `
+      )}
+
+      <button
+        class="primary full submit"
+        type="submit"
+      >
+        ذخیره تغییرات
+      </button>
+
+    </form>
+  `);
+
+  $("#editCourseForm")
+    .onsubmit =
+      async e => {
+
+        e.preventDefault();
+
+        await submitPost(
+          "updateCourse",
+          {
+            ...formDataObject(
+              e.target
+            ),
+            course_id:
+              course.course_id
+          },
+          "دوره ویرایش شد"
+        );
+      };
+}
+
+
 /* =========================================================
    EXPENSE
 ========================================================= */
+
+function editExpense(expense) {
+
+  modal(`
+
+    <div class="modal-title">
+      <span>EDIT EXPENSE</span>
+      <h2>ویرایش هزینه</h2>
+    </div>
+
+    <form
+      id="editExpenseForm"
+      class="form-grid"
+    >
+
+      ${selectField(
+        "دوره",
+        "course_id",
+        `
+          <option value="">
+            عمومی آکادمی
+          </option>
+
+          ${
+            state.courses.map(c => `
+              <option
+                value="${esc(c.course_id)}"
+                ${
+                  String(c.course_id) ===
+                  String(
+                    expense.course_id ||
+                    ""
+                  )
+                    ? "selected"
+                    : ""
+                }
+              >
+                ${esc(c.course_name)}
+              </option>
+            `).join("")
+          }
+        `
+      )}
+
+      ${formField(
+        "تاریخ",
+        "expense_date",
+        "date",
+        "",
+        expense.expense_date
+          ? String(
+              expense.expense_date
+            ).slice(0,10)
+          : ""
+      )}
+
+      ${formField(
+        "دسته هزینه",
+        "category",
+        "text",
+        "",
+        expense.category || ""
+      )}
+
+      ${formField(
+        "مبلغ",
+        "amount",
+        "number",
+        "",
+        expense.amount || ""
+      )}
+
+      ${formField(
+        "شرح",
+        "description",
+        "text",
+        "",
+        expense.description || ""
+      )}
+
+      ${formField(
+        "فروشنده / دریافت‌کننده",
+        "vendor",
+        "text",
+        "",
+        expense.vendor || ""
+      )}
+
+      <button
+        class="primary full submit"
+        type="submit"
+      >
+        ذخیره تغییرات
+      </button>
+
+    </form>
+  `);
+
+
+  $("#editExpenseForm")
+    .onsubmit =
+      async e => {
+
+        e.preventDefault();
+
+        await submitPost(
+          "updateExpense",
+          {
+            ...formDataObject(
+              e.target
+            ),
+            expense_id:
+              expense.expense_id
+          },
+          "هزینه ویرایش شد"
+        );
+      };
+}
+
 
 function newExpense(selectedCourse = null) {
 
@@ -6296,5 +8328,6 @@ document.addEventListener(
 
 loading(false);
 setConnected(false);
+initThemeControls();
 render();
 loadAll(false);
