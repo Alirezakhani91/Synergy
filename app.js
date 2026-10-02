@@ -2167,7 +2167,7 @@ function renderToday() {
           ? "danger"
           : "success"
       }">
-        <span>هشدار موجودی</span>
+        <span>وضعیت انبار</span>
         <strong>
           ${faNum(lowStock)}
         </strong>
@@ -5136,6 +5136,59 @@ function activeProducts() {
 }
 
 
+
+function productCurrentUnitPrice(productId) {
+
+  const items =
+    state.purchaseItems
+      .filter(
+        item =>
+          String(item.product_id) ===
+          String(productId)
+      )
+      .slice()
+      .reverse();
+
+  if (!items.length) return 0;
+
+  const latest = items[0];
+  const product = productById(productId);
+
+  const isMulti =
+    String(
+      product?.usage_type ||
+      "single"
+    ) === "multi";
+
+  if (isMulti) {
+    return Number(
+      latest.usage_unit_cost ||
+      (
+        Number(
+          latest.landed_unit_cost ||
+          latest.unit_price ||
+          0
+        ) /
+        Math.max(
+          1,
+          Number(
+            latest.uses_per_unit ||
+            product?.uses_per_unit ||
+            1
+          )
+        )
+      )
+    );
+  }
+
+  return Number(
+    latest.landed_unit_cost ||
+    latest.unit_price ||
+    0
+  );
+}
+
+
 function inventoryTotals() {
   const stockValue =
     activeProducts().reduce(
@@ -5158,23 +5211,10 @@ function inventoryTotals() {
     sumConsumptionCost(
       state.consumptions
     );
-
-  const lowStock =
-    activeProducts().filter(p => {
-      const min =
-        Number(p.min_stock || 0);
-      if (!min) return false;
-      return (
-        inventoryProductStock(p.product_id) <=
-        min
-      );
-    }).length;
-
-  return {
+return {
     stockValue,
     purchaseValue,
-    consumedValue,
-    lowStock
+    consumedValue
   };
 }
 
@@ -5295,12 +5335,24 @@ function renderInventory() {
         <small>هزینه تخصیص‌یافته به دوره‌ها</small>
       </div>
 
-      <div class="kpi danger">
-        <span>موجودی کم</span>
+      <div class="kpi">
+        <span>میانگین قیمت هر واحد</span>
         <strong>
-          ${faNum(t.lowStock)}
+          ${money(
+            activeProducts().length
+              ? activeProducts().reduce(
+                  (sum,p) =>
+                    sum +
+                    productCurrentUnitPrice(
+                      p.product_id
+                    ),
+                  0
+                ) /
+                activeProducts().length
+              : 0
+          )}
         </strong>
-        <small>نیازمند خرید</small>
+        <small>بر اساس آخرین بهای ثبت‌شده</small>
       </div>
 
     </div>
@@ -5371,19 +5423,10 @@ function renderInventory() {
                       کالا
                     </th>
                     <th style="padding:12px;text-align:right">
-                      کد
-                    </th>
-                    <th style="padding:12px;text-align:right">
-                      واحد مصرف
-                    </th>
-                    <th style="padding:12px;text-align:right">
-                      واحد خرید
-                    </th>
-                    <th style="padding:12px;text-align:right">
                       موجودی
                     </th>
                     <th style="padding:12px;text-align:right">
-                      حداقل موجودی
+                      قیمت هر واحد
                     </th>
                     <th style="padding:12px;text-align:right">
                       ارزش موجودی
@@ -5403,17 +5446,7 @@ function renderInventory() {
                         inventoryProductStock(
                           p.product_id
                         );
-
-                      const min =
-                        Number(
-                          p.min_stock || 0
-                        );
-
-                      const low =
-                        min > 0 &&
-                        stock <= min;
-
-                      return `
+return `
                         <tr
                           style="
                             border-top:
@@ -5442,52 +5475,8 @@ function renderInventory() {
                           </td>
 
                           <td style="padding:12px">
-                            ${esc(p.sku || "—")}
-                          </td>
-
-                          <td style="padding:12px">
-                            ${esc(p.unit || "عدد")}
-                          </td>
-
-                          <td style="padding:12px">
-                            <b>
-                              ${esc(
-                                p.purchase_unit ||
-                                p.unit ||
-                                "عدد"
-                              )}
-                            </b>
-                            <div
-                              style="
-                                font-size:9px;
-                                opacity:.58;
-                                margin-top:3px;
-                              "
-                            >
-                              هر
-                              ${esc(
-                                p.purchase_unit ||
-                                p.unit ||
-                                "واحد"
-                              )}
-                              =
-                              ${faNum(
-                                Number(
-                                  p.units_per_purchase ||
-                                  1
-                                )
-                              )}
-                              ${esc(p.unit || "عدد")}
-                            </div>
-                          </td>
-
-                          <td style="padding:12px">
                             <span
-                              class="badge ${
-                                low
-                                  ? "red"
-                                  : "green"
-                              }"
+                              class="badge green"
                             >
                               ${faNum(stock)}
                               ${esc(p.unit || "عدد")}
@@ -5531,7 +5520,29 @@ function renderInventory() {
                           </td>
 
                           <td style="padding:12px">
-                            ${faNum(min)}
+                            <b>
+                              ${money(
+                                productCurrentUnitPrice(
+                                  p.product_id
+                                )
+                              )}
+                            </b>
+                            <div
+                              style="
+                                font-size:9px;
+                                opacity:.6;
+                                margin-top:3px;
+                              "
+                            >
+                              ${
+                                String(
+                                  p.usage_type ||
+                                  "single"
+                                ) === "multi"
+                                  ? "هر بار استفاده"
+                                  : "هر " + esc(p.unit || "واحد")
+                              }
+                            </div>
                           </td>
 
                           <td style="padding:12px">
@@ -5960,16 +5971,7 @@ function editProduct(product) {
         "",
         product.product_name || ""
       )}
-
-      ${formField(
-        "کد / SKU",
-        "sku",
-        "text",
-        "",
-        product.sku || ""
-      )}
-
-      ${selectField(
+${selectField(
         "واحد مصرف",
         "unit",
         `
@@ -6060,16 +6062,7 @@ function editProduct(product) {
           `).join("")}
         `
       )}
-
-      ${formField(
-        "حداقل موجودی",
-        "min_stock",
-        "number",
-        "",
-        product.min_stock || ""
-      )}
-
-      <label class="field full">
+<label class="field full">
         <span>توضیحات</span>
         <textarea
           name="notes"
@@ -6363,13 +6356,7 @@ function newProduct() {
         "نام کالا",
         "product_name"
       )}
-
-      ${formField(
-        "کد / SKU",
-        "sku"
-      )}
-
-      ${selectField(
+${selectField(
         "واحد مصرف",
         "unit",
         `
@@ -6442,14 +6429,7 @@ function newProduct() {
           <option value="سایر">سایر</option>
         `
       )}
-
-      ${formField(
-        "حداقل موجودی",
-        "min_stock",
-        "number"
-      )}
-
-      <label class="field full">
+<label class="field full">
         <span>توضیحات</span>
         <textarea
           name="notes"
@@ -9054,10 +9034,10 @@ function renderReports() {
           </div>
 
           <div>
-            <span>هشدار موجودی</span>
+            <span>وضعیت انبار</span>
             <b>
               ${faNum(
-                inventory.lowStock
+                activeProducts().length
               )}
             </b>
           </div>
