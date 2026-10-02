@@ -18,6 +18,7 @@ const state = {
   products: [],
   purchases: [],
   purchaseItems: [],
+  purchaseCosts: [],
   consumptions: [],
   inventoryMovements: [],
   selectedLead: null,
@@ -622,15 +623,8 @@ async function loadAll(
   showLoading = false
 ) {
 
-  /*
-    The CRM shell must always open immediately.
-    Google Sheets data loads in the background.
-  */
-
   loading(false);
   setConnected(false);
-
-  // Show the interface immediately with current state.
   render();
 
   let anySuccess = false;
@@ -650,10 +644,10 @@ async function loadAll(
         safeLoad("products", []),
         safeLoad("purchases", []),
         safeLoad("purchaseItems", []),
+        safeLoad("purchaseCosts", []),
         safeLoad("consumptions", []),
         safeLoad("inventoryMovements", [])
       ]);
-
 
     const values =
       results.map(
@@ -666,7 +660,6 @@ async function loadAll(
               }
       );
 
-
     const [
       dashboard,
       leads,
@@ -675,95 +668,119 @@ async function loadAll(
       payments,
       expenses,
       followups,
+      todos,
       products,
       purchases,
       purchaseItems,
+      purchaseCosts,
       consumptions,
       inventoryMovements
     ] = values;
 
+    const assign = (
+      result,
+      key,
+      fallback
+    ) => {
 
-    if (dashboard.ok) {
-      state.dashboard =
-        dashboard.data || {};
+      if (!result?.ok) return;
+
+      state[key] =
+        result.data ??
+        fallback;
+
       anySuccess = true;
-    }
+    };
 
-    if (leads.ok) {
-      state.leads =
-        leads.data || [];
-      anySuccess = true;
-    }
+    assign(
+      dashboard,
+      "dashboard",
+      {}
+    );
 
-    if (courses.ok) {
-      state.courses =
-        courses.data || [];
-      anySuccess = true;
-    }
+    assign(
+      leads,
+      "leads",
+      []
+    );
 
-    if (students.ok) {
-      state.students =
-        students.data || [];
-      anySuccess = true;
-    }
+    assign(
+      courses,
+      "courses",
+      []
+    );
 
-    if (payments.ok) {
-      state.payments =
-        payments.data || [];
-      anySuccess = true;
-    }
+    assign(
+      students,
+      "students",
+      []
+    );
 
-    if (expenses.ok) {
-      state.expenses =
-        expenses.data || [];
-      anySuccess = true;
-    }
+    assign(
+      payments,
+      "payments",
+      []
+    );
 
-    if (followups.ok) {
-      state.followups =
-        followups.data || [];
-      anySuccess = true;
-    }
+    assign(
+      expenses,
+      "expenses",
+      []
+    );
 
-    if (products.ok) {
-      state.products =
-        products.data || [];
-      anySuccess = true;
-    }
+    assign(
+      followups,
+      "followups",
+      []
+    );
 
-    if (purchases.ok) {
-      state.purchases =
-        purchases.data || [];
-      anySuccess = true;
-    }
+    assign(
+      todos,
+      "todos",
+      []
+    );
 
-    if (purchaseItems.ok) {
-      state.purchaseItems =
-        purchaseItems.data || [];
-      anySuccess = true;
-    }
+    assign(
+      products,
+      "products",
+      []
+    );
 
-    if (consumptions.ok) {
-      state.consumptions =
-        consumptions.data || [];
-      anySuccess = true;
-    }
+    assign(
+      purchases,
+      "purchases",
+      []
+    );
 
-    if (inventoryMovements.ok) {
-      state.inventoryMovements =
-        inventoryMovements.data || [];
-      anySuccess = true;
-    }
+    assign(
+      purchaseItems,
+      "purchaseItems",
+      []
+    );
 
+    assign(
+      purchaseCosts,
+      "purchaseCosts",
+      []
+    );
+
+    assign(
+      consumptions,
+      "consumptions",
+      []
+    );
+
+    assign(
+      inventoryMovements,
+      "inventoryMovements",
+      []
+    );
 
     setConnected(anySuccess);
 
-    // Refresh visible data without blocking the screen.
     render();
 
-
     if (!anySuccess) {
-
       toast(
         "ارتباط با دیتابیس برقرار نشد",
         true
@@ -781,7 +798,6 @@ async function loadAll(
       true
     );
 
-    // Keep the CRM usable even if Google is unavailable.
     render();
 
   } finally {
@@ -3947,7 +3963,11 @@ function inventoryProductValue(productId) {
       (sum, item) =>
         sum +
         Number(item.remaining_qty ?? 0) *
-        Number(item.unit_price ?? 0),
+        Number(
+          item.landed_unit_cost ??
+          item.unit_price ??
+          0
+        ),
       0
     );
 }
@@ -3958,7 +3978,11 @@ function inventoryTotals() {
       (sum, item) =>
         sum +
         Number(item.remaining_qty ?? 0) *
-        Number(item.unit_price ?? 0),
+        Number(
+          item.landed_unit_cost ??
+          item.unit_price ??
+          0
+        ),
       0
     );
 
@@ -4328,6 +4352,21 @@ function renderInventory() {
                               p.total_amount
                             )}
                           </b>
+
+                          ${
+                            Number(
+                              p.ancillary_total || 0
+                            ) > 0
+                              ? `
+                                <small>
+                                  جانبی:
+                                  ${money(
+                                    p.ancillary_total
+                                  )}
+                                </small>
+                              `
+                              : ""
+                          }
 
                           <button
                             class="secondary glass-button mini-edit-btn"
@@ -4972,6 +5011,52 @@ function purchaseLineHtml(index) {
 }
 
 
+function ancillaryCostLineHtml(index) {
+
+  return `
+    <div
+      class="panel ancillary-cost-line"
+      data-cost-line="${index}"
+      style="
+        margin-bottom:8px;
+        padding:12px;
+      "
+    >
+
+      <div class="form-grid">
+
+        ${formField(
+          "عنوان هزینه جانبی",
+          `cost_label_${index}`,
+          "text",
+          "",
+          "هزینه ارسال"
+        )}
+
+        ${formField(
+          "مبلغ",
+          `cost_amount_${index}`,
+          "number"
+        )}
+
+        <button
+          type="button"
+          class="danger-action remove-ancillary-line"
+          style="
+            align-self:end;
+            min-height:45px;
+          "
+        >
+          حذف
+        </button>
+
+      </div>
+
+    </div>
+  `;
+}
+
+
 function newPurchase() {
 
   if (!state.products.length) {
@@ -4986,21 +5071,24 @@ function newPurchase() {
   modal(`
 
     <div class="modal-title">
+
       <span>PURCHASE INVOICE</span>
+
       <h2>ثبت فاکتور خرید انبار</h2>
+
       <p>
-        یک فاکتور می‌تواند شامل چند کالای مختلف با تعداد و قیمت متفاوت باشد.
+        اقلام خرید و هر تعداد هزینه جانبی مثل ارسال، پیک یا بسته‌بندی را وارد کنید.
+        سیستم هزینه‌های جانبی را خودکار بر اساس ارزش خرید بین کالاها تقسیم می‌کند.
       </p>
+
     </div>
 
-    <form
-      id="purchaseForm"
-    >
+    <form id="purchaseForm">
 
       <div class="form-grid">
 
         ${formField(
-          "فروشنده",
+          "فروشنده (اختیاری)",
           "supplier"
         )}
 
@@ -5016,14 +5104,18 @@ function newPurchase() {
         )}
 
         <label class="field">
+
           <span>توضیحات</span>
+
           <input
             name="notes"
             type="text"
           >
+
         </label>
 
       </div>
+
 
       <div
         style="
@@ -5031,15 +5123,20 @@ function newPurchase() {
           justify-content:space-between;
           align-items:center;
           margin:20px 0 10px;
+          gap:12px;
         "
       >
+
         <div>
+
           <h3 style="margin:0">
             اقلام فاکتور
           </h3>
+
           <small style="opacity:.6">
-            برای هر محصول تعداد و قیمت واحد را وارد کنید.
+            تعداد و قیمت واحد هر کالا را وارد کنید.
           </small>
+
         </div>
 
         <button
@@ -5047,48 +5144,156 @@ function newPurchase() {
           type="button"
           class="secondary glass-button"
         >
-          ＋ ردیف جدید
+          ＋ ردیف کالا
         </button>
+
       </div>
 
       <div id="purchaseLines"></div>
 
+
       <div
-        class="panel"
         style="
           display:flex;
           justify-content:space-between;
           align-items:center;
-          margin:12px 0;
+          margin:22px 0 10px;
+          gap:12px;
         "
       >
-        <span>
-          مبلغ کل فاکتور
-        </span>
 
-        <strong
-          id="purchaseGrandTotal"
-          style="font-size:20px"
+        <div>
+
+          <h3 style="margin:0">
+            هزینه‌های جانبی
+          </h3>
+
+          <small style="opacity:.6">
+            هر تعداد هزینه ارسال، پیک، بسته‌بندی یا هزینه جانبی دیگر اضافه کنید.
+          </small>
+
+        </div>
+
+        <button
+          id="addAncillaryCost"
+          type="button"
+          class="secondary glass-button"
         >
-          ۰ تومان
-        </strong>
+          ＋ هزینه جانبی
+        </button>
+
       </div>
+
+      <div id="ancillaryCostLines"></div>
+
+
+      <section
+        class="panel"
+        style="
+          margin:14px 0;
+          display:grid;
+          grid-template-columns:
+            repeat(3,1fr);
+          gap:10px;
+        "
+      >
+
+        <div>
+          <span
+            style="
+              display:block;
+              opacity:.65;
+              font-size:10px;
+            "
+          >
+            جمع کالاها
+          </span>
+
+          <strong
+            id="purchaseGoodsTotal"
+            style="font-size:18px"
+          >
+            ۰ تومان
+          </strong>
+        </div>
+
+        <div>
+          <span
+            style="
+              display:block;
+              opacity:.65;
+              font-size:10px;
+            "
+          >
+            هزینه‌های جانبی
+          </span>
+
+          <strong
+            id="purchaseAncillaryTotal"
+            style="font-size:18px"
+          >
+            ۰ تومان
+          </strong>
+        </div>
+
+        <div>
+          <span
+            style="
+              display:block;
+              opacity:.65;
+              font-size:10px;
+            "
+          >
+            بهای تمام‌شده خرید
+          </span>
+
+          <strong
+            id="purchaseGrandTotal"
+            style="font-size:20px"
+          >
+            ۰ تومان
+          </strong>
+        </div>
+
+      </section>
+
+
+      <div
+        class="panel"
+        style="
+          margin:12px 0;
+          padding:14px;
+          font-size:11px;
+          line-height:1.9;
+        "
+      >
+        <b>روش تخصیص:</b>
+        هزینه‌های جانبی بر اساس سهم ارزش هر کالا از کل خرید تقسیم می‌شوند.
+        بنابراین هنگام مصرف کالا در هر دوره، سهم واقعی ارسال و سایر هزینه‌های جانبی هم همراه آن کالا وارد هزینه همان دوره می‌شود.
+      </div>
+
 
       <button
         class="primary full submit"
         type="submit"
         style="width:100%"
       >
-        ثبت فاکتور و افزایش موجودی
+        ثبت خرید و افزایش موجودی
       </button>
 
     </form>
   `);
 
+
   let lineCounter = 0;
+  let costCounter = 0;
 
   const lines =
     $("#purchaseLines");
+
+  const costLines =
+    $("#ancillaryCostLines");
+
 
   function addLine() {
 
@@ -5104,7 +5309,44 @@ function newPurchase() {
     bindNumberInputs(lines);
 
     bindPurchaseLines();
+
+    updatePurchaseTotals();
   }
+
+
+  function addCostLine(
+    label = "هزینه ارسال"
+  ) {
+
+    costLines.insertAdjacentHTML(
+      "beforeend",
+      ancillaryCostLineHtml(
+        costCounter
+      )
+    );
+
+    const row =
+      costLines.lastElementChild;
+
+    const labelInput =
+      row?.querySelector(
+        `[name="cost_label_${costCounter}"]`
+      );
+
+    if (labelInput) {
+      labelInput.value =
+        label;
+    }
+
+    costCounter++;
+
+    bindNumberInputs(costLines);
+
+    bindPurchaseLines();
+
+    updatePurchaseTotals();
+  }
+
 
   function bindPurchaseLines() {
 
@@ -5113,30 +5355,48 @@ function newPurchase() {
 
         btn.onclick = () => {
 
-          const line =
-            btn.closest(
+          btn
+            .closest(
               ".purchase-line"
-            );
-
-          line?.remove();
+            )
+            ?.remove();
 
           updatePurchaseTotals();
         };
       });
 
-    $$(".purchase-line input")
+
+    $$(".remove-ancillary-line")
+      .forEach(btn => {
+
+        btn.onclick = () => {
+
+          btn
+            .closest(
+              ".ancillary-cost-line"
+            )
+            ?.remove();
+
+          updatePurchaseTotals();
+        };
+      });
+
+
+    $$(
+      ".purchase-line input, " +
+      ".ancillary-cost-line input"
+    )
       .forEach(input => {
 
-        input.addEventListener(
-          "input",
-          updatePurchaseTotals
-        );
+        input.oninput =
+          updatePurchaseTotals;
       });
   }
 
-  function updatePurchaseTotals() {
 
-    let grand = 0;
+  function currentGoodsTotal() {
+
+    let total = 0;
 
     $$(".purchase-line")
       .forEach(line => {
@@ -5144,7 +5404,7 @@ function newPurchase() {
         const index =
           line.dataset.purchaseLine;
 
-        const qty =
+        const quantity =
           Number(
             rawNumber(
               line.querySelector(
@@ -5153,7 +5413,7 @@ function newPurchase() {
             ) || 0
           );
 
-        const price =
+        const unitPrice =
           Number(
             rawNumber(
               line.querySelector(
@@ -5162,31 +5422,93 @@ function newPurchase() {
             ) || 0
           );
 
-        const total =
-          qty * price;
+        const lineTotal =
+          quantity *
+          unitPrice;
 
-        grand += total;
+        total +=
+          lineTotal;
 
-        const totalEl =
+        const el =
           line.querySelector(
             ".purchase-line-total"
           );
 
-        if (totalEl) {
-          totalEl.textContent =
-            money(total);
+        if (el) {
+          el.textContent =
+            money(lineTotal);
         }
       });
 
+    return total;
+  }
+
+
+  function currentAncillaryTotal() {
+
+    return $$(".ancillary-cost-line")
+      .reduce(
+        (sum,line) => {
+
+          const index =
+            line.dataset.costLine;
+
+          const amount =
+            Number(
+              rawNumber(
+                line.querySelector(
+                  `[name="cost_amount_${index}"]`
+                )?.value
+              ) || 0
+            );
+
+          return sum + amount;
+        },
+        0
+      );
+  }
+
+
+  function updatePurchaseTotals() {
+
+    const goodsTotal =
+      currentGoodsTotal();
+
+    const ancillaryTotal =
+      currentAncillaryTotal();
+
+    $("#purchaseGoodsTotal")
+      .textContent =
+        money(goodsTotal);
+
+    $("#purchaseAncillaryTotal")
+      .textContent =
+        money(ancillaryTotal);
+
     $("#purchaseGrandTotal")
       .textContent =
-        money(grand);
+        money(
+          goodsTotal +
+          ancillaryTotal
+        );
   }
+
 
   $("#addPurchaseLine").onclick =
     addLine;
 
+  $("#addAncillaryCost").onclick =
+    () =>
+      addCostLine(
+        "هزینه ارسال"
+      );
+
+
   addLine();
+  addCostLine(
+    "هزینه ارسال"
+  );
+
 
   $("#purchaseForm").onsubmit =
     async e => {
@@ -5194,7 +5516,9 @@ function newPurchase() {
       e.preventDefault();
 
       const base =
-        formDataObject(e.target);
+        formDataObject(
+          e.target
+        );
 
       const items = [];
 
@@ -5232,13 +5556,17 @@ function newPurchase() {
             quantity ||
             unitPrice
           ) {
+
             items.push({
-              product_id:productId,
+              product_id:
+                productId,
               quantity,
-              unit_price:unitPrice
+              unit_price:
+                unitPrice
             });
           }
         });
+
 
       if (!items.length) {
         toast(
@@ -5247,6 +5575,44 @@ function newPurchase() {
         );
         return;
       }
+
+
+      const extraCosts = [];
+
+      $$(".ancillary-cost-line")
+        .forEach(line => {
+
+          const index =
+            line.dataset.costLine;
+
+          const label =
+            line.querySelector(
+              `[name="cost_label_${index}"]`
+            )?.value?.trim() || "";
+
+          const amount =
+            Number(
+              rawNumber(
+                line.querySelector(
+                  `[name="cost_amount_${index}"]`
+                )?.value
+              ) || 0
+            );
+
+          if (
+            label ||
+            amount
+          ) {
+
+            extraCosts.push({
+              label:
+                label ||
+                "هزینه جانبی",
+              amount
+            });
+          }
+        });
+
 
       await submitPost(
         "createPurchase",
@@ -5259,12 +5625,16 @@ function newPurchase() {
             base.purchase_date || "",
           notes:
             base.notes || "",
-          items
+          items,
+          extra_costs:
+            extraCosts
         },
-        "فاکتور خرید ثبت شد و موجودی افزایش یافت"
+        "فاکتور خرید، هزینه‌های جانبی و موجودی ثبت شدند"
       );
     };
 }
+
+
 
 
 function newConsumption() {
