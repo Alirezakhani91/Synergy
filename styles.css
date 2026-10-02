@@ -2623,3 +2623,44 @@ body{
     grid-template-columns:1fr 1fr;
   }
 }
+
+
+/* =========================================================
+   V11 — TODO + JALALI UX
+========================================================= */
+
+.jalali-preview{
+  display:block;
+  margin-top:5px;
+  font-size:9px;
+  color:rgba(255,255,255,.55);
+}
+
+.todo-row{
+  align-items:flex-start;
+}
+
+.todo-done{
+  opacity:.58;
+}
+
+.todo-done .lead-main b{
+  text-decoration:line-through;
+}
+
+.todo-check{
+  flex:none;
+  width:38px;
+  height:38px;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,.16);
+  color:#fff;
+  background:rgba(255,255,255,.08);
+  font-size:18px;
+}
+
+.todo-mini{
+  padding:7px 10px !important;
+  min-height:0 !important;
+  font-size:10px;
+}
