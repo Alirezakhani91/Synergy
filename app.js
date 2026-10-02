@@ -7044,7 +7044,7 @@ async function newPurchase() {
   function addLine() {
 
     lines.insertAdjacentHTML(
-      "beforeend",
+      "afterbegin",
       purchaseLineHtml(
         lineCounter
       )
