@@ -4854,12 +4854,27 @@ function renderFinance() {
                             ${money(e.amount)}
                           </b>
 
-                          <button
-                            class="secondary glass-button mini-edit-btn"
-                            data-expense-edit="${esc(e.expense_id)}"
+                          <div
+                            style="
+                              display:flex;
+                              gap:6px;
+                              flex-wrap:wrap;
+                            "
                           >
-                            ویرایش
-                          </button>
+                            <button
+                              class="secondary glass-button mini-edit-btn"
+                              data-expense-edit="${esc(e.expense_id)}"
+                            >
+                              ویرایش
+                            </button>
+
+                            <button
+                              class="danger-action mini-edit-btn"
+                              data-expense-delete="${esc(e.expense_id)}"
+                            >
+                              حذف
+                            </button>
+                          </div>
 
                         </div>
 
@@ -4904,6 +4919,95 @@ function renderFinance() {
         if (expense)
           editExpense(expense);
       };
+    });
+
+
+  $$("[data-expense-delete]")
+    .forEach(button => {
+
+      button.onclick =
+        async () => {
+
+          const expense =
+            state.expenses.find(
+              e =>
+                String(e.expense_id) ===
+                String(
+                  button.dataset.expenseDelete
+                )
+            );
+
+          if (!expense) return;
+
+          const ok =
+            confirm(
+              `هزینه «${
+                expense.description ||
+                expense.category ||
+                "بدون عنوان"
+              }» به مبلغ ${
+                money(
+                  expense.amount
+                )
+              } حذف شود؟`
+            );
+
+          if (!ok) return;
+
+          try {
+
+            button.disabled = true;
+            button.textContent =
+              "در حال حذف...";
+
+            const result =
+              await post(
+                "deleteExpense",
+                {
+                  expense_id:
+                    expense.expense_id
+                }
+              );
+
+            if (!result?.success) {
+              throw new Error(
+                result?.message ||
+                "حذف هزینه انجام نشد."
+              );
+            }
+
+            state.expenses =
+              state.expenses.filter(
+                e =>
+                  String(e.expense_id) !==
+                  String(
+                    expense.expense_id
+                  )
+              );
+
+            toast(
+              "هزینه حذف شد"
+            );
+
+            render();
+
+            loadAll(false);
+
+          } catch (error) {
+
+            console.error(error);
+
+            toast(
+              error.message ||
+              "حذف هزینه انجام نشد.",
+              true
+            );
+
+            button.disabled = false;
+            button.textContent =
+              "حذف";
+          }
+        };
     });
 
   $$("[data-finance-course]")
@@ -10840,12 +10944,29 @@ function editExpense(expense) {
         expense.vendor || ""
       )}
 
-      <button
-        class="primary full submit"
-        type="submit"
+      <div
+        class="full"
+        style="
+          display:grid;
+          grid-template-columns:1fr 1fr;
+          gap:8px;
+        "
       >
-        ذخیره تغییرات
-      </button>
+        <button
+          class="primary submit"
+          type="submit"
+        >
+          ذخیره تغییرات
+        </button>
+
+        <button
+          id="deleteExpenseFromEdit"
+          class="danger-action"
+          type="button"
+        >
+          حذف هزینه
+        </button>
+      </div>
 
     </form>
   `);
@@ -10868,6 +10989,69 @@ function editExpense(expense) {
           },
           "هزینه ویرایش شد"
         );
+      };
+
+
+  $("#deleteExpenseFromEdit")
+    .onclick =
+      async () => {
+
+        const ok =
+          confirm(
+            `هزینه «${
+              expense.description ||
+              expense.category ||
+              "بدون عنوان"
+            }» حذف شود؟`
+          );
+
+        if (!ok) return;
+
+        try {
+
+          const result =
+            await post(
+              "deleteExpense",
+              {
+                expense_id:
+                  expense.expense_id
+              }
+            );
+
+          if (!result?.success) {
+            throw new Error(
+              result?.message ||
+              "حذف هزینه انجام نشد."
+            );
+          }
+
+          state.expenses =
+            state.expenses.filter(
+              e =>
+                String(e.expense_id) !==
+                String(
+                  expense.expense_id
+                )
+            );
+
+          closeModal();
+
+          toast(
+            "هزینه حذف شد"
+          );
+
+          render();
+
+          loadAll(false);
+
+        } catch (error) {
+
+          toast(
+            error.message ||
+            "حذف هزینه انجام نشد.",
+            true
+          );
+        }
       };
 }
 
