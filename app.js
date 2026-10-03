@@ -5882,12 +5882,27 @@ return `
                               )}
                             </b>
 
-                            <button
-                              class="secondary glass-button mini-edit-btn"
-                              data-consumption-edit="${esc(c.consumption_id)}"
+                            <div
+                              style="
+                                display:flex;
+                                gap:6px;
+                                flex-wrap:wrap;
+                              "
                             >
-                              ویرایش
-                            </button>
+                              <button
+                                class="secondary glass-button mini-edit-btn"
+                                data-consumption-edit="${esc(c.consumption_id)}"
+                              >
+                                ویرایش
+                              </button>
+
+                              <button
+                                class="danger-action mini-edit-btn"
+                                data-consumption-delete="${esc(c.consumption_id)}"
+                              >
+                                حذف
+                              </button>
+                            </div>
                           </div>
                         </div>
                       `;
@@ -6053,6 +6068,60 @@ return `
 
         if (item)
           editConsumption(item);
+      };
+    });
+
+  $$("[data-consumption-delete]")
+    .forEach(button => {
+      button.onclick = async () => {
+        const item =
+          state.consumptions.find(
+            c =>
+              String(c.consumption_id) ===
+              String(button.dataset.consumptionDelete)
+          );
+
+        if (!item) return;
+
+        const ok = confirm(
+          `مصرف «${item.product_name || "کالا"}» به مقدار ${faNum(item.quantity)} ${item.unit || ""} حذف شود؟\n\nموجودی به انبار برمی‌گردد و هزینه از دوره حذف می‌شود.`
+        );
+
+        if (!ok) return;
+
+        try {
+          button.disabled = true;
+          button.textContent = "در حال حذف...";
+
+          const result =
+            await post(
+              "deleteConsumption",
+              { consumption_id:item.consumption_id }
+            );
+
+          if (!result?.success) {
+            throw new Error(
+              result?.message ||
+              "حذف مصرف انجام نشد."
+            );
+          }
+
+          toast(
+            "مصرف حذف شد و موجودی برگشت داده شد"
+          );
+
+          await refreshInventoryData();
+          render();
+
+        } catch (error) {
+          toast(
+            error.message ||
+            "حذف مصرف انجام نشد.",
+            true
+          );
+          button.disabled = false;
+          button.textContent = "حذف";
+        }
       };
     });
 }
@@ -7235,44 +7304,11 @@ function editConsumption(item) {
 
     <div class="modal-title">
       <span>CONSUMPTION</span>
-      <h2>ویرایش مصرف دوره</h2>
+      <h2>ویرایش کامل مصرف دوره</h2>
       <p>
-        مقدار و بهای مصرف پس از تخصیص موجودی
-        قفل است؛ تاریخ و توضیحات قابل ویرایش است.
+        دوره، کالا، مقدار مصرف، تاریخ و توضیحات قابل ویرایش هستند.
+        موجودی و هزینه دوره بعد از ذخیره خودکار اصلاح می‌شوند.
       </p>
-    </div>
-
-    <div class="profile-info" style="margin-bottom:14px">
-
-      <div>
-        <span>کالا</span>
-        <b>
-          ${esc(
-            item.product_name ||
-            "—"
-          )}
-        </b>
-      </div>
-
-      <div>
-        <span>تعداد</span>
-        <b>
-          ${faNum(
-            item.quantity
-          )}
-          ${esc(item.unit || "")}
-        </b>
-      </div>
-
-      <div>
-        <span>هزینه تخصیص‌یافته</span>
-        <b>
-          ${money(
-            item.total_cost
-          )}
-        </b>
-      </div>
-
     </div>
 
     <form
@@ -7280,15 +7316,83 @@ function editConsumption(item) {
       class="form-grid"
     >
 
+      ${selectField(
+        "دوره",
+        "course_id",
+        `
+          <option value="">انتخاب دوره</option>
+          ${
+            state.courses.map(c => `
+              <option
+                value="${esc(c.course_id)}"
+                ${
+                  String(c.course_id) ===
+                  String(item.course_id || "")
+                    ? "selected"
+                    : ""
+                }
+              >
+                ${esc(c.course_name)}
+              </option>
+            `).join("")
+          }
+        `
+      )}
+
+      ${selectField(
+        "کالا",
+        "product_id",
+        `
+          <option value="">انتخاب کالا</option>
+          ${
+            activeProducts().map(p => `
+              <option
+                value="${esc(p.product_id)}"
+                ${
+                  String(p.product_id) ===
+                  String(item.product_id || "")
+                    ? "selected"
+                    : ""
+                }
+              >
+                ${esc(p.product_name)}
+              </option>
+            `).join("")
+          }
+        `
+      )}
+
+      <label class="field">
+        <span id="editConsumptionQtyLabel">
+          مقدار مصرف
+        </span>
+
+        <input
+          name="quantity"
+          type="text"
+          data-number="true"
+          inputmode="numeric"
+          value="${esc(item.quantity || "")}"
+        >
+
+        <small
+          id="editConsumptionQtyHelp"
+          style="
+            margin-top:5px;
+            opacity:.58;
+            font-size:9px;
+            line-height:1.8;
+          "
+        ></small>
+      </label>
+
       ${formField(
         "تاریخ مصرف",
         "consumption_date",
         "date",
         "",
         item.consumption_date
-          ? String(
-              item.consumption_date
-            ).slice(0,10)
+          ? String(item.consumption_date).slice(0,10)
           : ""
       )}
 
@@ -7297,20 +7401,93 @@ function editConsumption(item) {
         <textarea
           name="notes"
           rows="3"
-        >${esc(
-          item.notes || ""
-        )}</textarea>
+        >${esc(item.notes || "")}</textarea>
       </label>
 
-      <button
-        class="primary full submit"
-        type="submit"
+      <div
+        class="full"
+        style="
+          display:grid;
+          grid-template-columns:1fr 1fr;
+          gap:8px;
+        "
       >
-        ذخیره تغییرات
-      </button>
+        <button
+          class="primary submit"
+          type="submit"
+        >
+          ذخیره تغییرات
+        </button>
+
+        <button
+          id="deleteConsumptionFromEdit"
+          class="danger-action"
+          type="button"
+        >
+          حذف مصرف
+        </button>
+      </div>
 
     </form>
   `);
+
+  const productSelect =
+    $("#editConsumptionForm [name='product_id']");
+
+  const qtyLabel =
+    $("#editConsumptionQtyLabel");
+
+  const qtyHelp =
+    $("#editConsumptionQtyHelp");
+
+  const syncEditConsumption = () => {
+
+    const product =
+      state.products.find(
+        p =>
+          String(p.product_id) ===
+          String(productSelect?.value || "")
+      );
+
+    if (!product) return;
+
+    const multi =
+      String(product.usage_type || "single") ===
+      "multi";
+
+    if (qtyLabel) {
+      qtyLabel.textContent =
+        multi
+          ? "تعداد دفعات استفاده"
+          : `تعداد مصرف (${product.unit || "عدد"})`;
+    }
+
+    if (qtyHelp) {
+
+      const available =
+        multi
+          ? inventoryProductUses(product.product_id)
+          : inventoryProductStock(product.product_id);
+
+      const currentBack =
+        String(product.product_id) ===
+        String(item.product_id)
+          ? Number(item.quantity || 0)
+          : 0;
+
+      qtyHelp.textContent =
+        multi
+          ? `حداکثر قابل ثبت با احتساب مصرف فعلی: ${faNum(available + currentBack)} بار`
+          : `حداکثر قابل ثبت با احتساب مصرف فعلی: ${faNum(available + currentBack)} ${product.unit || ""}`;
+    }
+  };
+
+  if (productSelect) {
+    productSelect.onchange =
+      syncEditConsumption;
+  }
+
+  syncEditConsumption();
 
   $("#editConsumptionForm")
     .onsubmit =
@@ -7318,19 +7495,95 @@ function editConsumption(item) {
 
         e.preventDefault();
 
+        const data =
+          formDataObject(e.target);
+
+        const qty =
+          Number(
+            rawNumber(data.quantity) || 0
+          );
+
+        if (
+          !data.product_id ||
+          qty <= 0
+        ) {
+          toast(
+            "کالا و مقدار مصرف را وارد کنید.",
+            true
+          );
+          return;
+        }
+
         await submitPost(
-          "updateConsumption",
+          "updateConsumptionFull",
           {
-            ...formDataObject(
-              e.target
-            ),
             consumption_id:
-              item.consumption_id
+              item.consumption_id,
+            course_id:
+              data.course_id || "",
+            product_id:
+              data.product_id,
+            quantity:
+              qty,
+            consumption_date:
+              data.consumption_date || "",
+            notes:
+              data.notes || ""
           },
-          "مصرف دوره ویرایش شد"
+          "مصرف دوره و موجودی اصلاح شد"
         );
       };
+
+  $("#deleteConsumptionFromEdit")
+    .onclick =
+      async () => {
+
+        const ok =
+          confirm(
+            "این مصرف حذف شود؟\n\nموجودی به انبار برمی‌گردد و هزینه از دوره حذف می‌شود."
+          );
+
+        if (!ok) return;
+
+        try {
+
+          const result =
+            await post(
+              "deleteConsumption",
+              {
+                consumption_id:
+                  item.consumption_id
+              }
+            );
+
+          if (!result?.success) {
+            throw new Error(
+              result?.message ||
+              "حذف مصرف انجام نشد."
+            );
+          }
+
+          closeModal();
+
+          toast(
+            "مصرف حذف شد و موجودی برگشت داده شد"
+          );
+
+          await refreshInventoryData();
+          render();
+
+        } catch (error) {
+
+          toast(
+            error.message ||
+            "حذف مصرف انجام نشد.",
+            true
+          );
+        }
+      };
 }
+
+
 
 
 function newProduct() {
