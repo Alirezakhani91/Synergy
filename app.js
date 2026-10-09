@@ -9320,381 +9320,847 @@ function newConsumption() {
     return;
   }
 
+
   modal(`
 
     <div class="modal-title">
       <span>COURSE CONSUMPTION</span>
       <h2>ثبت مصرف دوره</h2>
       <p>
-        برای کالاهای یک‌بارمصرف مقدار مصرف ثبت می‌شود.
-        برای کالاهای چندبارمصرف، تعداد دفعات استفاده ثبت می‌شود و فقط سهم همان استفاده به هزینه دوره می‌رود.
+        یک دوره را انتخاب کنید و همه اقلام مصرف‌شده را در همین فرم ثبت کنید.
       </p>
     </div>
 
+
     <form
       id="consumptionForm"
-      class="form-grid"
     >
 
-      ${selectField(
-        "دوره",
-        "course_id",
-        `
-          <option value="">
-            انتخاب دوره
-          </option>
+      <div class="form-grid">
 
-          ${
-            state.courses.map(c => `
-              <option
-                value="${esc(c.course_id)}"
-              >
-                ${esc(c.course_name)}
-              </option>
-            `).join("")
-          }
-        `
-      )}
+        ${selectField(
+          "دوره",
+          "course_id",
+          `
+            <option value="">
+              انتخاب دوره
+            </option>
 
-      ${selectField(
-        "کالا",
-        "product_id",
-        `
-          <option value="">
-            انتخاب کالا
-          </option>
-
-          ${
-            activeProducts().map(p => {
-
-              const stock =
-                inventoryProductStock(
-                  p.product_id
-                );
-
-              const uses =
-                inventoryProductUses(
-                  p.product_id
-                );
-
-              const multi =
-                String(
-                  p.usage_type ||
-                  "single"
-                ) === "multi";
-
-              return `
+            ${
+              state.courses.map(c => `
                 <option
-                  value="${esc(p.product_id)}"
+                  value="${esc(c.course_id)}"
                 >
-                  ${esc(p.product_name)}
-                  —
+                  ${esc(c.course_name)}
                   ${
-                    multi
-                      ? `${faNum(uses)} بار استفاده باقی‌مانده`
-                      : `موجودی ${faNum(stock)} ${esc(p.unit || "")}`
+                    c.start_date
+                      ? ` — ${dateFa(c.start_date)}`
+                      : ""
                   }
                 </option>
-              `;
-            }).join("")
-          }
-        `
-      )}
+              `).join("")
+            }
+          `
+        )}
 
-      <label class="field">
-        <span id="consumptionQtyLabel">
-          تعداد مصرف
-        </span>
 
-        <input
-          name="quantity"
-          type="text"
-          data-number="true"
-          inputmode="numeric"
-          autocomplete="off"
+        ${formField(
+          "تاریخ مصرف",
+          "consumption_date",
+          "date"
+        )}
+
+      </div>
+
+
+      <div
+        id="selectedCourseDate"
+        class="panel"
+        style="
+          margin:12px 0 16px;
+          padding:12px 14px;
+          display:none;
+          line-height:1.9;
+        "
+      ></div>
+
+
+      <div
+        style="
+          display:flex;
+          justify-content:space-between;
+          align-items:center;
+          gap:12px;
+          margin:14px 0 10px;
+        "
+      >
+        <div>
+          <h3 style="margin:0">
+            اقلام مصرف‌شده
+          </h3>
+          <small style="opacity:.6">
+            برای هر کالای مصرف‌شده یک ردیف اضافه کنید.
+          </small>
+        </div>
+
+        <button
+          id="addConsumptionLine"
+          type="button"
+          class="secondary glass-button"
         >
+          ＋ ردیف مصرف
+        </button>
+      </div>
 
-        <small
-          id="consumptionQtyHelp"
-          style="
-            margin-top:5px;
-            opacity:.58;
-            font-size:9px;
-            line-height:1.8;
-          "
-        >
-          کالا را انتخاب کنید.
-        </small>
-      </label>
 
-      ${formField(
-        "تاریخ مصرف",
-        "consumption_date",
-        "date"
-      )}
+      <div id="consumptionLines"></div>
 
-      <label class="field full">
+
+      <label
+        class="field"
+        style="display:block;margin-top:12px"
+      >
         <span>توضیحات</span>
+
         <textarea
           name="notes"
           rows="3"
         ></textarea>
       </label>
 
-      <div
-        id="consumptionCostPreview"
-        class="panel full"
-        style="
-          padding:12px;
-          font-size:10px;
-          line-height:1.9;
-          display:none;
-        "
-      ></div>
 
       <button
         class="primary full submit"
         type="submit"
+        style="width:100%;margin-top:12px"
       >
-        ثبت مصرف و تخصیص هزینه به دوره
+        ثبت همه مصرف‌ها و تخصیص هزینه به دوره
       </button>
 
     </form>
   `);
 
 
-  const productSelect =
-    $("#consumptionForm [name='product_id']");
+  const form =
+    $("#consumptionForm");
 
-  const qtyInput =
-    $("#consumptionForm [name='quantity']");
+  const courseSelect =
+    form.querySelector(
+      "[name='course_id']"
+    );
 
-  const qtyLabel =
-    $("#consumptionQtyLabel");
+  const courseDatePanel =
+    $("#selectedCourseDate");
 
-  const qtyHelp =
-    $("#consumptionQtyHelp");
+  const lines =
+    $("#consumptionLines");
 
-  const preview =
-    $("#consumptionCostPreview");
+  let lineCounter = 0;
 
 
-  const syncConsumptionForm =
-    () => {
+  function setDateFieldValue(
+    name,
+    value
+  ) {
 
-      const product =
-        state.products.find(
-          p =>
-            String(p.product_id) ===
-            String(
-              productSelect?.value ||
-              ""
-            )
+    const target =
+      form.querySelector(
+        `[name="${name}"]`
+      );
+
+    if (!target) return;
+
+    target.value =
+      value || "";
+
+    const display =
+      form.querySelector(
+        `[data-target-id="${target.id}"]`
+      );
+
+    if (display) {
+
+      display.value =
+        value
+          ? jalaliDate(value)
+          : "";
+
+      const longTarget =
+        document.getElementById(
+          display.dataset.longTargetId
         );
 
-      if (!product) {
+      if (longTarget) {
+        longTarget.textContent =
+          value
+            ? jalaliDateLong(value)
+            : "تاریخ شمسی انتخاب نشده";
+      }
+    }
+  }
 
-        if (preview) {
-          preview.style.display =
-            "none";
-        }
 
-        return;
+  function syncSelectedCourse() {
+
+    const course =
+      state.courses.find(
+        c =>
+          String(c.course_id) ===
+          String(
+            courseSelect?.value ||
+            ""
+          )
+      );
+
+
+    if (!course) {
+
+      if (courseDatePanel) {
+        courseDatePanel.style.display =
+          "none";
       }
 
-      const multi =
-        String(
-          product.usage_type ||
-          "single"
-        ) === "multi";
+      return;
+    }
 
-      const qty =
-        Number(
-          rawNumber(
-            qtyInput?.value
-          ) || 0
-        );
+
+    if (courseDatePanel) {
+
+      courseDatePanel.style.display =
+        "block";
+
+      courseDatePanel.innerHTML = `
+        <b>
+          ${esc(course.course_name)}
+        </b>
+
+        <br>
+
+        تاریخ شروع دوره:
+        <strong>
+          ${
+            course.start_date
+              ? jalaliDateLong(
+                  course.start_date
+                )
+              : "تاریخ ثبت نشده"
+          }
+        </strong>
+
+        ${
+          course.location
+            ? `
+              <br>
+              محل برگزاری:
+              <b>
+                ${esc(course.location)}
+              </b>
+            `
+            : ""
+        }
+      `;
+    }
+
+
+    /*
+      When a course has a date, prefill the consumption date
+      with that date. The user can still change it manually.
+    */
+    const currentDate =
+      form.querySelector(
+        "[name='consumption_date']"
+      )?.value || "";
+
+    if (
+      !currentDate &&
+      course.start_date
+    ) {
+      setDateFieldValue(
+        "consumption_date",
+        String(
+          course.start_date
+        ).slice(0,10)
+      );
+    }
+  }
+
+
+  function lineHtml(
+    index
+  ) {
+
+    return `
+      <div
+        class="panel consumption-line"
+        data-consumption-line="${index}"
+        style="
+          margin-bottom:10px;
+          padding:14px;
+        "
+      >
+
+        <div
+          style="
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            gap:10px;
+            margin-bottom:12px;
+          "
+        >
+          <b>
+            ردیف مصرف
+          </b>
+
+          <button
+            type="button"
+            class="danger-action remove-consumption-line"
+            style="padding:7px 10px"
+          >
+            حذف ردیف
+          </button>
+        </div>
+
+
+        <div class="form-grid">
+
+          <label class="field">
+            <span>کالا</span>
+
+            <select
+              class="consumption-product-select"
+              name="consumption_product_${index}"
+            >
+              <option value="">
+                انتخاب کالا
+              </option>
+
+              ${
+                activeProducts()
+                  .map(p => {
+
+                    const multi =
+                      String(
+                        p.usage_type ||
+                        "single"
+                      ) === "multi";
+
+                    const available =
+                      multi
+                        ? inventoryProductUses(
+                            p.product_id
+                          )
+                        : inventoryProductStock(
+                            p.product_id
+                          );
+
+                    return `
+                      <option
+                        value="${esc(p.product_id)}"
+                      >
+                        ${esc(p.product_name)}
+                        —
+                        ${
+                          multi
+                            ? `${faNum(available)} بار استفاده`
+                            : `${faNum(available)} ${esc(p.unit || "عدد")}`
+                        }
+                      </option>
+                    `;
+                  })
+                  .join("")
+              }
+            </select>
+          </label>
+
+
+          <label class="field">
+            <span class="consumption-line-qty-label">
+              مقدار مصرف
+            </span>
+
+            <input
+              name="consumption_quantity_${index}"
+              type="text"
+              data-number="true"
+              inputmode="numeric"
+              autocomplete="off"
+            >
+
+            <small
+              class="consumption-line-help"
+              style="
+                margin-top:5px;
+                opacity:.58;
+                font-size:9px;
+                line-height:1.8;
+              "
+            >
+              کالا را انتخاب کنید.
+            </small>
+          </label>
+
+        </div>
+
+
+        <div
+          class="consumption-line-preview"
+          style="
+            display:none;
+            margin-top:10px;
+            padding:10px 12px;
+            border-radius:14px;
+            background:rgba(255,255,255,.05);
+            border:1px solid rgba(255,255,255,.1);
+            font-size:10px;
+            line-height:1.9;
+          "
+        ></div>
+
+      </div>
+    `;
+  }
+
+
+  function syncLine(
+    line
+  ) {
+
+    const index =
+      line.dataset
+        .consumptionLine;
+
+    const productId =
+      line.querySelector(
+        ".consumption-product-select"
+      )?.value || "";
+
+    const product =
+      state.products.find(
+        p =>
+          String(p.product_id) ===
+          String(productId)
+      );
+
+    const qtyInput =
+      line.querySelector(
+        `[name="consumption_quantity_${index}"]`
+      );
+
+    const qty =
+      Number(
+        rawNumber(
+          qtyInput?.value
+        ) || 0
+      );
+
+    const label =
+      line.querySelector(
+        ".consumption-line-qty-label"
+      );
+
+    const help =
+      line.querySelector(
+        ".consumption-line-help"
+      );
+
+    const preview =
+      line.querySelector(
+        ".consumption-line-preview"
+      );
+
+
+    if (!product) {
+
+      if (label) {
+        label.textContent =
+          "مقدار مصرف";
+      }
+
+      if (help) {
+        help.textContent =
+          "کالا را انتخاب کنید.";
+      }
+
+      if (preview) {
+        preview.style.display =
+          "none";
+      }
+
+      return;
+    }
+
+
+    const multi =
+      String(
+        product.usage_type ||
+        "single"
+      ) === "multi";
+
+    const available =
+      multi
+        ? inventoryProductUses(
+            product.product_id
+          )
+        : inventoryProductStock(
+            product.product_id
+          );
+
+
+    if (label) {
+      label.textContent =
+        multi
+          ? "تعداد دفعات استفاده"
+          : `تعداد مصرف (${product.unit || "عدد"})`;
+    }
+
+
+    if (help) {
+      help.textContent =
+        multi
+          ? `قابل استفاده: ${faNum(available)} بار`
+          : `موجودی فعلی: ${faNum(available)} ${product.unit || ""}`;
+    }
+
+
+    if (preview) {
 
       if (multi) {
 
-        const remainingUses =
-          inventoryProductUses(
-            product.product_id
+        const firstBatch =
+          state.purchaseItems.find(
+            x =>
+              String(x.product_id) ===
+              String(product.product_id) &&
+              Number(
+                x.remaining_uses ??
+                0
+              ) > 0
           );
 
-        if (qtyLabel) {
-          qtyLabel.textContent =
-            "تعداد دفعات استفاده";
-        }
+        const unitCost =
+          Number(
+            firstBatch?.usage_unit_cost ||
+            0
+          );
 
-        if (qtyHelp) {
-          qtyHelp.textContent =
-            `این کالا چندبارمصرف است. ${faNum(remainingUses)} بار استفاده باقی مانده است.`;
-        }
+        preview.style.display =
+          "block";
 
-        if (preview) {
-
-          const batches =
-            state.purchaseItems.filter(
-              x =>
-                String(x.product_id) ===
-                String(product.product_id) &&
-                Number(
-                  x.remaining_uses ??
-                  0
-                ) > 0
-            );
-
-          const firstBatch =
-            batches[0];
-
-          const estimatedUseCost =
+        preview.innerHTML = `
+          <b>کالای چندبارمصرف</b>
+          —
+          هر واحد
+          ${faNum(
             Number(
-              firstBatch?.usage_unit_cost ||
-              0
-            );
+              product.uses_per_unit ||
+              1
+            )
+          )}
+          بار قابل استفاده است.
 
-          preview.style.display =
-            "block";
-
-          preview.innerHTML = `
-            <b>کالای چندبارمصرف</b>
-            <br>
-            هر واحد:
-            ${faNum(
-              Number(
-                product.uses_per_unit ||
-                1
-              )
-            )}
-            بار قابل استفاده است.
-            ${
-              qty > 0 &&
-              estimatedUseCost > 0
-                ? `
-                  <br>
-                  هزینه تقریبی این ثبت:
-                  <b>
-                    ${money(
-                      qty *
-                      estimatedUseCost
-                    )}
-                  </b>
-                `
-                : ""
-            }
-          `;
-        }
+          ${
+            qty > 0 &&
+            unitCost > 0
+              ? `
+                <br>
+                هزینه تقریبی این ردیف:
+                <b>
+                  ${money(
+                    qty *
+                    unitCost
+                  )}
+                </b>
+              `
+              : ""
+          }
+        `;
 
       } else {
 
-        const stock =
-          inventoryProductStock(
-            product.product_id
+        preview.style.display =
+          "none";
+      }
+    }
+  }
+
+
+  function bindLines() {
+
+    bindNumberInputs(
+      form
+    );
+
+
+    $$(".remove-consumption-line")
+      .forEach(button => {
+
+        button.onclick =
+          () => {
+
+            if (
+              $$(".consumption-line")
+                .length <= 1
+            ) {
+              toast(
+                "حداقل یک ردیف مصرف باید باقی بماند.",
+                true
+              );
+              return;
+            }
+
+            button
+              .closest(
+                ".consumption-line"
+              )
+              ?.remove();
+          };
+      });
+
+
+    $$(".consumption-line")
+      .forEach(line => {
+
+        const select =
+          line.querySelector(
+            ".consumption-product-select"
           );
 
-        if (qtyLabel) {
-          qtyLabel.textContent =
-            `تعداد مصرف (${product.unit || "عدد"})`;
+        const index =
+          line.dataset
+            .consumptionLine;
+
+        const qtyInput =
+          line.querySelector(
+            `[name="consumption_quantity_${index}"]`
+          );
+
+
+        if (select) {
+          select.onchange =
+            () =>
+              syncLine(line);
         }
 
-        if (qtyHelp) {
-          qtyHelp.textContent =
-            `موجودی فعلی: ${faNum(stock)} ${product.unit || ""}`;
+
+        if (qtyInput) {
+          qtyInput.oninput =
+            () =>
+              syncLine(line);
         }
 
-        if (preview) {
-          preview.style.display =
-            "none";
-        }
-      }
-    };
 
-
-  if (productSelect) {
-    productSelect.onchange =
-      syncConsumptionForm;
+        syncLine(line);
+      });
   }
 
-  if (qtyInput) {
-    qtyInput.oninput =
-      syncConsumptionForm;
+
+  function addLine(
+    prepend = true
+  ) {
+
+    lines.insertAdjacentHTML(
+      prepend
+        ? "afterbegin"
+        : "beforeend",
+      lineHtml(
+        lineCounter
+      )
+    );
+
+    lineCounter++;
+
+    bindLines();
   }
 
 
-  $("#consumptionForm").onsubmit =
+  addLine(false);
+
+
+  $("#addConsumptionLine")
+    .onclick =
+      () =>
+        addLine(true);
+
+
+  if (courseSelect) {
+    courseSelect.onchange =
+      syncSelectedCourse;
+  }
+
+
+  form.onsubmit =
     async e => {
 
       e.preventDefault();
 
-      const data =
-        formDataObject(e.target);
-
-      const qty =
-        Number(
-          rawNumber(
-            data.quantity
-          ) || 0
+      const base =
+        formDataObject(
+          form
         );
 
-      const product =
-        state.products.find(
-          p =>
-            String(p.product_id) ===
-            String(data.product_id)
-        );
-
-      if (
-        !data.product_id ||
-        qty <= 0
-      ) {
+      if (!base.course_id) {
         toast(
-          "کالا و مقدار مصرف را وارد کنید.",
+          "دوره را انتخاب کنید.",
           true
         );
         return;
       }
 
-      const multi =
-        String(
-          product?.usage_type ||
-          "single"
-        ) === "multi";
 
-      const available =
-        multi
-          ? inventoryProductUses(
-              data.product_id
-            )
-          : inventoryProductStock(
-              data.product_id
+      const items = [];
+
+      const requestedByProduct =
+        new Map();
+
+
+      $$(".consumption-line")
+        .forEach(line => {
+
+          const index =
+            line.dataset
+              .consumptionLine;
+
+          const productId =
+            line.querySelector(
+              ".consumption-product-select"
+            )?.value || "";
+
+          const qty =
+            Number(
+              rawNumber(
+                line.querySelector(
+                  `[name="consumption_quantity_${index}"]`
+                )?.value
+              ) || 0
             );
 
-      if (qty > available) {
+
+          if (
+            productId ||
+            qty
+          ) {
+
+            items.push({
+              product_id:
+                productId,
+              quantity:
+                qty
+            });
+
+
+            if (
+              productId &&
+              qty > 0
+            ) {
+              requestedByProduct.set(
+                productId,
+                (
+                  requestedByProduct.get(
+                    productId
+                  ) || 0
+                ) +
+                qty
+              );
+            }
+          }
+        });
+
+
+      if (!items.length) {
         toast(
-          multi
-            ? `تعداد دفعات قابل استفاده کافی نیست. باقی‌مانده: ${faNum(available)} بار`
-            : `موجودی کافی نیست. موجودی فعلی ${faNum(available)} است.`,
+          "حداقل یک کالای مصرف‌شده وارد کنید.",
           true
         );
         return;
       }
 
+
+      for (
+        const item of items
+      ) {
+
+        if (
+          !item.product_id ||
+          item.quantity <= 0
+        ) {
+          toast(
+            "همه ردیف‌ها باید کالا و مقدار مصرف معتبر داشته باشند.",
+            true
+          );
+          return;
+        }
+      }
+
+
+      for (
+        const [
+          productId,
+          requested
+        ] of requestedByProduct
+      ) {
+
+        const product =
+          state.products.find(
+            p =>
+              String(p.product_id) ===
+              String(productId)
+          );
+
+        const multi =
+          String(
+            product?.usage_type ||
+            "single"
+          ) === "multi";
+
+        const available =
+          multi
+            ? inventoryProductUses(
+                productId
+              )
+            : inventoryProductStock(
+                productId
+              );
+
+
+        if (
+          requested >
+          available
+        ) {
+
+          toast(
+            multi
+              ? `برای «${product?.product_name || "کالا"}» فقط ${faNum(available)} بار استفاده موجود است.`
+              : `برای «${product?.product_name || "کالا"}» فقط ${faNum(available)} ${product?.unit || ""} موجود است.`,
+            true
+          );
+
+          return;
+        }
+      }
+
+
       await submitPost(
-        "createConsumption",
+        "createConsumptionsBatch",
         {
-          ...data,
-          quantity:qty
+          course_id:
+            base.course_id,
+          consumption_date:
+            base.consumption_date ||
+            "",
+          notes:
+            base.notes || "",
+          items
         },
-        multi
-          ? "استفاده دوره ثبت شد و سهم هزینه به دوره تخصیص یافت"
-          : "مصرف دوره ثبت شد و موجودی بروزرسانی شد"
+        `${faNum(items.length)} ردیف مصرف برای دوره ثبت شد`
       );
     };
 
 
-  syncConsumptionForm();
+  syncSelectedCourse();
 }
+
+
 
 
 
