@@ -22,12 +22,6 @@ const state = {
   consumptions: [],
   inventoryMovements: [],
   pettyCashTransactions: [],
-  financeSettings: {
-    partner1_name:"شریک اول",
-    partner1_percent:50,
-    partner2_name:"شریک دوم",
-    partner2_percent:50
-  },
   selectedLead: null,
   selectedCourse: null,
   loading: false
@@ -1575,13 +1569,6 @@ function cacheableStateSnapshot() {
         state.consumptions || [],
       pettyCashTransactions:
         state.pettyCashTransactions || [],
-      financeSettings:
-        state.financeSettings || {
-          partner1_name:"شریک اول",
-          partner1_percent:50,
-          partner2_name:"شریک دوم",
-          partner2_percent:50
-        },
 
       /*
         Inventory movements can become very large over time.
@@ -1682,13 +1669,6 @@ function saveStateCache() {
             state.consumptions || [],
           pettyCashTransactions:
             state.pettyCashTransactions || [],
-          financeSettings:
-            state.financeSettings || {
-              partner1_name:"شریک اول",
-              partner1_percent:50,
-              partner2_name:"شریک دوم",
-              partner2_percent:50
-            },
           inventoryMovements:[]
         }
       };
@@ -1762,12 +1742,6 @@ function restoreStateCache() {
       ["purchaseCosts", []],
       ["consumptions", []],
       ["pettyCashTransactions", []],
-      ["financeSettings", {
-        partner1_name:"شریک اول",
-        partner1_percent:50,
-        partner2_name:"شریک دوم",
-        partner2_percent:50
-      }],
       ["inventoryMovements", []]
     ].forEach(
       ([key,fallback]) => {
@@ -1941,13 +1915,7 @@ async function loadAll(
         safeLoad("consumptions", []),
         safeLoad("inventoryMovements", []),
         safeLoad("financeExtension", {
-          transactions:[],
-          settings:{
-            partner1_name:"شریک اول",
-            partner1_percent:50,
-            partner2_name:"شریک دوم",
-            partner2_percent:50
-          }
+          transactions:[]
         })
       ]);
 
@@ -2085,17 +2053,6 @@ async function loadAll(
     ) {
       state.pettyCashTransactions =
         financeExtension.data.transactions || [];
-
-      state.financeSettings = {
-        partner1_name:"شریک اول",
-        partner1_percent:50,
-        partner2_name:"شریک دوم",
-        partner2_percent:50,
-        ...(
-          financeExtension.data.settings ||
-          {}
-        )
-      };
 
       anySuccess = true;
     }
@@ -5078,125 +5035,6 @@ function returnPettyCash() {
 }
 
 
-function editPartnerShares() {
-
-  const s = {
-    partner1_name:"شریک اول",
-    partner1_percent:50,
-    partner2_name:"شریک دوم",
-    partner2_percent:50,
-    ...state.financeSettings
-  };
-
-
-  modal(`
-
-    <div class="modal-title">
-      <span>PARTNERS</span>
-      <h2>تنظیم سهم شرکا</h2>
-      <p>
-        مجموع درصد دو شریک باید دقیقاً 100٪ باشد.
-      </p>
-    </div>
-
-    <form
-      id="partnerShareForm"
-      class="form-grid"
-    >
-
-      ${formField(
-        "نام شریک اول",
-        "partner1_name",
-        "text",
-        "",
-        s.partner1_name
-      )}
-
-      ${formField(
-        "درصد شریک اول",
-        "partner1_percent",
-        "number",
-        "",
-        s.partner1_percent
-      )}
-
-      ${formField(
-        "نام شریک دوم",
-        "partner2_name",
-        "text",
-        "",
-        s.partner2_name
-      )}
-
-      ${formField(
-        "درصد شریک دوم",
-        "partner2_percent",
-        "number",
-        "",
-        s.partner2_percent
-      )}
-
-      <button
-        class="primary full submit"
-        type="submit"
-      >
-        ذخیره سهم شرکا
-      </button>
-
-    </form>
-  `);
-
-
-  $("#partnerShareForm")
-    .onsubmit =
-      async e => {
-
-        e.preventDefault();
-
-        const data =
-          formDataObject(
-            e.target
-          );
-
-        const p1 =
-          Number(
-            rawNumber(
-              data.partner1_percent
-            ) || 0
-          );
-
-        const p2 =
-          Number(
-            rawNumber(
-              data.partner2_percent
-            ) || 0
-          );
-
-        if (
-          p1 < 0 ||
-          p2 < 0 ||
-          p1 + p2 !== 100
-        ) {
-          toast(
-            "مجموع درصد دو شریک باید دقیقاً 100٪ باشد.",
-            true
-          );
-          return;
-        }
-
-        await submitPost(
-          "updateFinanceSettings",
-          {
-            ...data,
-            partner1_percent:p1,
-            partner2_percent:p2
-          },
-          "سهم شرکا ذخیره شد"
-        );
-      };
-}
-
-
 function renderFinance() {
 
   title(
@@ -5238,30 +5076,6 @@ function renderFinance() {
   const distributableProfit =
     profit -
     petty.balance;
-
-  const financeSettings = {
-    partner1_name:"شریک اول",
-    partner1_percent:50,
-    partner2_name:"شریک دوم",
-    partner2_percent:50,
-    ...state.financeSettings
-  };
-
-  const partner1Share =
-    distributableProfit *
-    Number(
-      financeSettings.partner1_percent ||
-      0
-    ) /
-    100;
-
-  const partner2Share =
-    distributableProfit *
-    Number(
-      financeSettings.partner2_percent ||
-      0
-    ) /
-    100;
 
   const margin =
     revenue
@@ -5417,12 +5231,6 @@ function renderFinance() {
             ↩ برگشت وجه
           </button>
 
-          <button
-            class="secondary glass-button"
-            data-action="editPartnerShares"
-          >
-            ⚙ سهم شرکا
-          </button>
         </div>
 
       </div>
@@ -5457,33 +5265,21 @@ function renderFinance() {
       </div>
 
 
-      <div
-        class="finance-strip"
-        style="margin-top:12px"
-      >
-
-        <div>
-          <span>
-            ${esc(financeSettings.partner1_name)}
-            (${faNum(financeSettings.partner1_percent)}٪)
-          </span>
-          <strong>${money(partner1Share)}</strong>
-        </div>
-
-        <div>
-          <span>
-            ${esc(financeSettings.partner2_name)}
-            (${faNum(financeSettings.partner2_percent)}٪)
-          </span>
-          <strong>${money(partner2Share)}</strong>
-        </div>
-
-        <div>
-          <span>برگشت از تنخواه</span>
-          <strong>${money(petty.returned)}</strong>
-        </div>
-
-      </div>
+      ${
+        petty.returned > 0
+          ? `
+            <div
+              class="finance-strip"
+              style="margin-top:12px"
+            >
+              <div>
+                <span>برگشت از تنخواه</span>
+                <strong>${money(petty.returned)}</strong>
+              </div>
+            </div>
+          `
+          : ""
+      }
 
 
       ${
@@ -12050,9 +11846,6 @@ function openAction(action) {
 
   if (action === "returnPettyCash")
     return returnPettyCash();
-
-  if (action === "editPartnerShares")
-    return editPartnerShares();
 
   if (action === "newPayment")
     return newPayment();
