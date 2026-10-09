@@ -1512,6 +1512,327 @@ async function post(
 
 
 /* =========================================================
+   INSTANT LOCAL DATA CACHE
+   Show the last successful data immediately, then refresh
+   from Google Sheets silently in the background.
+========================================================= */
+
+const SYNERGY_DATA_CACHE_KEY =
+  "synergy_data_cache_v1";
+
+const SYNERGY_DATA_CACHE_VERSION =
+  1;
+
+let restoredFromLocalCache =
+  false;
+
+let localCacheTimestamp =
+  0;
+
+
+function cacheableStateSnapshot() {
+
+  return {
+    version:
+      SYNERGY_DATA_CACHE_VERSION,
+
+    saved_at:
+      Date.now(),
+
+    data:{
+      dashboard:
+        state.dashboard || {},
+      leads:
+        state.leads || [],
+      courses:
+        state.courses || [],
+      students:
+        state.students || [],
+      payments:
+        state.payments || [],
+      expenses:
+        state.expenses || [],
+      followups:
+        state.followups || [],
+      todos:
+        state.todos || [],
+      products:
+        state.products || [],
+      purchases:
+        state.purchases || [],
+      purchaseItems:
+        state.purchaseItems || [],
+      purchaseCosts:
+        state.purchaseCosts || [],
+      consumptions:
+        state.consumptions || [],
+
+      /*
+        Inventory movements can become very large over time.
+        They are not required to render the main screens instantly,
+        so they are excluded from the primary cache.
+      */
+      inventoryMovements:[]
+    }
+  };
+}
+
+
+function hasUsefulCachedData(
+  data
+) {
+
+  if (!data) return false;
+
+  return [
+    "leads",
+    "courses",
+    "students",
+    "payments",
+    "expenses",
+    "products",
+    "purchases",
+    "purchaseItems",
+    "consumptions",
+    "todos"
+  ].some(
+    key =>
+      Array.isArray(data[key]) &&
+      data[key].length > 0
+  ) ||
+  (
+    data.dashboard &&
+    Object.keys(
+      data.dashboard
+    ).length > 0
+  );
+}
+
+
+function saveStateCache() {
+
+  try {
+
+    const snapshot =
+      cacheableStateSnapshot();
+
+    localStorage.setItem(
+      SYNERGY_DATA_CACHE_KEY,
+      JSON.stringify(snapshot)
+    );
+
+    localCacheTimestamp =
+      snapshot.saved_at;
+
+    return true;
+
+  } catch (error) {
+
+    /*
+      If the browser storage quota is tight, save a lighter
+      snapshot rather than losing the instant-start experience.
+    */
+    try {
+
+      const light = {
+        version:
+          SYNERGY_DATA_CACHE_VERSION,
+        saved_at:
+          Date.now(),
+        data:{
+          dashboard:
+            state.dashboard || {},
+          leads:
+            state.leads || [],
+          courses:
+            state.courses || [],
+          students:
+            state.students || [],
+          payments:
+            state.payments || [],
+          expenses:
+            state.expenses || [],
+          followups:[],
+          todos:
+            state.todos || [],
+          products:
+            state.products || [],
+          purchases:
+            state.purchases || [],
+          purchaseItems:
+            state.purchaseItems || [],
+          purchaseCosts:[],
+          consumptions:
+            state.consumptions || [],
+          inventoryMovements:[]
+        }
+      };
+
+      localStorage.setItem(
+        SYNERGY_DATA_CACHE_KEY,
+        JSON.stringify(light)
+      );
+
+      localCacheTimestamp =
+        light.saved_at;
+
+      return true;
+
+    } catch (fallbackError) {
+
+      console.warn(
+        "Local data cache save failed:",
+        fallbackError
+      );
+
+      return false;
+    }
+  }
+}
+
+
+function restoreStateCache() {
+
+  try {
+
+    const raw =
+      localStorage.getItem(
+        SYNERGY_DATA_CACHE_KEY
+      );
+
+    if (!raw) {
+      return false;
+    }
+
+    const cached =
+      JSON.parse(raw);
+
+    if (
+      !cached ||
+      cached.version !==
+        SYNERGY_DATA_CACHE_VERSION ||
+      !hasUsefulCachedData(
+        cached.data
+      )
+    ) {
+      return false;
+    }
+
+    const data =
+      cached.data;
+
+
+    [
+      ["dashboard", {}],
+      ["leads", []],
+      ["courses", []],
+      ["students", []],
+      ["payments", []],
+      ["expenses", []],
+      ["followups", []],
+      ["todos", []],
+      ["products", []],
+      ["purchases", []],
+      ["purchaseItems", []],
+      ["purchaseCosts", []],
+      ["consumptions", []],
+      ["inventoryMovements", []]
+    ].forEach(
+      ([key,fallback]) => {
+
+        if (
+          data[key] !==
+          undefined
+        ) {
+          state[key] =
+            data[key] ??
+            fallback;
+        }
+      }
+    );
+
+
+    restoredFromLocalCache =
+      true;
+
+    localCacheTimestamp =
+      Number(
+        cached.saved_at || 0
+      );
+
+    return true;
+
+  } catch (error) {
+
+    console.warn(
+      "Local data cache restore failed:",
+      error
+    );
+
+    return false;
+  }
+}
+
+
+function setConnectionMessage(
+  mode
+) {
+
+  const dot =
+    $("#connectionDot");
+
+  const text =
+    $("#connectionText");
+
+
+  if (mode === "syncing") {
+
+    if (dot)
+      dot.className = "ok";
+
+    if (text)
+      text.textContent =
+        "در حال همگام‌سازی...";
+
+    return;
+  }
+
+
+  if (mode === "cached") {
+
+    if (dot)
+      dot.className = "bad";
+
+    if (text)
+      text.textContent =
+        "نمایش آخرین اطلاعات ذخیره‌شده";
+
+    return;
+  }
+
+
+  setConnected(
+    mode === "online"
+  );
+}
+
+
+window.addEventListener(
+  "pagehide",
+  () => {
+
+    if (
+      hasUsefulCachedData(
+        state
+      )
+    ) {
+      saveStateCache();
+    }
+  }
+);
+
+
+/* =========================================================
    DATA LOADING
 ========================================================= */
 
@@ -1554,8 +1875,18 @@ async function loadAll(
 ) {
 
   loading(false);
-  setConnected(false);
-  render();
+
+  /*
+    If cached data is already on screen, never blank the UI
+    while waiting for Google Sheets. Just show a subtle sync state.
+  */
+  if (restoredFromLocalCache) {
+    setConnectionMessage(
+      "syncing"
+    );
+  } else {
+    setConnected(false);
+  }
 
   let anySuccess = false;
 
@@ -1763,11 +2094,41 @@ async function loadAll(
       }
     }
 
-    setConnected(anySuccess);
+    if (anySuccess) {
 
-    render();
+      setConnectionMessage(
+        "online"
+      );
 
-    if (!anySuccess) {
+      /*
+        Fresh Google Sheets data becomes the next instant-start snapshot.
+      */
+      saveStateCache();
+
+      restoredFromLocalCache =
+        true;
+
+      render();
+
+    } else if (
+      restoredFromLocalCache
+    ) {
+
+      /*
+        Keep the last known data visible if the network/API is unavailable.
+      */
+      setConnectionMessage(
+        "cached"
+      );
+
+      render();
+
+    } else {
+
+      setConnected(false);
+
+      render();
+
       toast(
         "ارتباط با دیتابیس برقرار نشد",
         true
@@ -1778,14 +2139,27 @@ async function loadAll(
 
     console.error(error);
 
-    setConnected(false);
+    if (
+      restoredFromLocalCache
+    ) {
 
-    toast(
-      "خطا در دریافت اطلاعات",
-      true
-    );
+      setConnectionMessage(
+        "cached"
+      );
 
-    render();
+      render();
+
+    } else {
+
+      setConnected(false);
+
+      toast(
+        "خطا در دریافت اطلاعات",
+        true
+      );
+
+      render();
+    }
 
   } finally {
 
@@ -11777,6 +12151,12 @@ async function submitPost(
     closeModal();
 
     /*
+      Preserve the current visible state immediately.
+      The background refresh below will replace it with fresh server data.
+    */
+    saveStateCache();
+
+    /*
       Do not block the user's success flow on a full refresh.
       The write is already confirmed by the server.
     */
@@ -12827,9 +13207,30 @@ document.addEventListener(
 */
 
 loading(false);
-setConnected(false);
+
+const hasStartupCache =
+  restoreStateCache();
+
 initThemeControls();
+
+/*
+  FIRST PAINT:
+  cached data appears immediately with no API wait.
+*/
 render();
+
+if (hasStartupCache) {
+  setConnectionMessage(
+    "syncing"
+  );
+} else {
+  setConnected(false);
+}
+
+/*
+  BACKGROUND REFRESH:
+  latest Google Sheets data replaces the cache when it arrives.
+*/
 loadAll(false);
 
 
