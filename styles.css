@@ -3520,3 +3520,53 @@ body{
   }
 }
 
+
+
+/* =========================================================
+   DESKTOP TOPBAR ADD BUTTON — STABLE APPEARANCE V13.5
+   Keep "+ مشتری جدید" independent from generic secondary
+   buttons and universal glass/theme brightness.
+========================================================= */
+
+@media(min-width:901px){
+
+  .topbar .desktop-add{
+    color:#ffffff !important;
+
+    background:
+      linear-gradient(
+        145deg,
+        rgba(88,126,190,.62),
+        rgba(102,103,180,.48)
+      ) !important;
+
+    border:
+      1px solid
+      rgba(255,255,255,.22) !important;
+
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.18),
+      0 10px 24px rgba(8,13,35,.18) !important;
+
+    backdrop-filter:
+      blur(18px)
+      saturate(125%) !important;
+
+    -webkit-backdrop-filter:
+      blur(18px)
+      saturate(125%) !important;
+
+    opacity:1 !important;
+    filter:none !important;
+  }
+
+  .topbar .desktop-add:hover{
+    background:
+      linear-gradient(
+        145deg,
+        rgba(98,140,210,.72),
+        rgba(112,105,194,.58)
+      ) !important;
+  }
+}
+
