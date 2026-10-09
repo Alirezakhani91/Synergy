@@ -5376,7 +5376,7 @@ function renderFinance() {
 
 
     <section
-      class="panel"
+      class="panel petty-cash-section"
       style="margin-top:14px"
     >
 
