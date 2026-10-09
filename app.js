@@ -21,6 +21,13 @@ const state = {
   purchaseCosts: [],
   consumptions: [],
   inventoryMovements: [],
+  pettyCashTransactions: [],
+  financeSettings: {
+    partner1_name:"شریک اول",
+    partner1_percent:50,
+    partner2_name:"شریک دوم",
+    partner2_percent:50
+  },
   selectedLead: null,
   selectedCourse: null,
   loading: false
@@ -1566,6 +1573,15 @@ function cacheableStateSnapshot() {
         state.purchaseCosts || [],
       consumptions:
         state.consumptions || [],
+      pettyCashTransactions:
+        state.pettyCashTransactions || [],
+      financeSettings:
+        state.financeSettings || {
+          partner1_name:"شریک اول",
+          partner1_percent:50,
+          partner2_name:"شریک دوم",
+          partner2_percent:50
+        },
 
       /*
         Inventory movements can become very large over time.
@@ -1664,6 +1680,15 @@ function saveStateCache() {
           purchaseCosts:[],
           consumptions:
             state.consumptions || [],
+          pettyCashTransactions:
+            state.pettyCashTransactions || [],
+          financeSettings:
+            state.financeSettings || {
+              partner1_name:"شریک اول",
+              partner1_percent:50,
+              partner2_name:"شریک دوم",
+              partner2_percent:50
+            },
           inventoryMovements:[]
         }
       };
@@ -1736,6 +1761,13 @@ function restoreStateCache() {
       ["purchaseItems", []],
       ["purchaseCosts", []],
       ["consumptions", []],
+      ["pettyCashTransactions", []],
+      ["financeSettings", {
+        partner1_name:"شریک اول",
+        partner1_percent:50,
+        partner2_name:"شریک دوم",
+        partner2_percent:50
+      }],
       ["inventoryMovements", []]
     ].forEach(
       ([key,fallback]) => {
@@ -1907,7 +1939,16 @@ async function loadAll(
         safeLoad("purchaseItems", []),
         safeLoad("purchaseCosts", []),
         safeLoad("consumptions", []),
-        safeLoad("inventoryMovements", [])
+        safeLoad("inventoryMovements", []),
+        safeLoad("financeExtension", {
+          transactions:[],
+          settings:{
+            partner1_name:"شریک اول",
+            partner1_percent:50,
+            partner2_name:"شریک دوم",
+            partner2_percent:50
+          }
+        })
       ]);
 
     const values =
@@ -1935,7 +1976,8 @@ async function loadAll(
       purchaseItems,
       purchaseCosts,
       consumptions,
-      inventoryMovements
+      inventoryMovements,
+      financeExtension
     ] = values;
 
     const assign = (
@@ -2036,6 +2078,27 @@ async function loadAll(
       "inventoryMovements",
       []
     );
+
+    if (
+      financeExtension?.ok &&
+      financeExtension.data
+    ) {
+      state.pettyCashTransactions =
+        financeExtension.data.transactions || [];
+
+      state.financeSettings = {
+        partner1_name:"شریک اول",
+        partner1_percent:50,
+        partner2_name:"شریک دوم",
+        partner2_percent:50,
+        ...(
+          financeExtension.data.settings ||
+          {}
+        )
+      };
+
+      anySuccess = true;
+    }
 
     /*
       Inventory fallback:
@@ -4757,6 +4820,383 @@ function financeCourseRows() {
 }
 
 
+
+function pettyCashMetrics() {
+
+  const transactions =
+    state.pettyCashTransactions || [];
+
+  const allocated =
+    transactions
+      .filter(
+        x =>
+          x.type ===
+          "reserve_add"
+      )
+      .reduce(
+        (sum,x) =>
+          sum +
+          Number(x.amount || 0),
+        0
+      );
+
+  const returned =
+    transactions
+      .filter(
+        x =>
+          x.type ===
+          "reserve_return"
+      )
+      .reduce(
+        (sum,x) =>
+          sum +
+          Number(x.amount || 0),
+        0
+      );
+
+  const spent =
+    transactions
+      .filter(
+        x =>
+          x.type ===
+          "petty_expense"
+      )
+      .reduce(
+        (sum,x) =>
+          sum +
+          Number(x.amount || 0),
+        0
+      );
+
+  const balance =
+    allocated -
+    returned -
+    spent;
+
+  return {
+    allocated,
+    returned,
+    spent,
+    balance
+  };
+}
+
+
+function newPettyCashReserve() {
+
+  modal(`
+
+    <div class="modal-title">
+      <span>PETTY CASH</span>
+      <h2>شارژ تنخواه مدیر</h2>
+      <p>
+        این مبلغ هزینه نیست؛ فقط از مبلغ قابل تقسیم خارج و برای عملیات آکادمی رزرو می‌شود.
+      </p>
+    </div>
+
+    <form
+      id="pettyCashReserveForm"
+      class="form-grid"
+    >
+
+      ${formField(
+        "مبلغ شارژ",
+        "amount",
+        "number"
+      )}
+
+      ${formField(
+        "تاریخ",
+        "transaction_date",
+        "date"
+      )}
+
+      ${formField(
+        "شرح",
+        "description",
+        "text",
+        "",
+        "شارژ تنخواه مدیر"
+      )}
+
+      <button
+        class="primary full submit"
+        type="submit"
+      >
+        ثبت شارژ تنخواه
+      </button>
+
+    </form>
+  `);
+
+
+  $("#pettyCashReserveForm")
+    .onsubmit =
+      async e => {
+
+        e.preventDefault();
+
+        const data =
+          formDataObject(
+            e.target
+          );
+
+        const amount =
+          Number(
+            rawNumber(
+              data.amount
+            ) || 0
+          );
+
+        if (amount <= 0) {
+          toast(
+            "مبلغ شارژ باید بیشتر از صفر باشد.",
+            true
+          );
+          return;
+        }
+
+        await submitPost(
+          "createPettyCashReserve",
+          {
+            ...data,
+            amount
+          },
+          "تنخواه شارژ شد"
+        );
+      };
+}
+
+
+function returnPettyCash() {
+
+  const petty =
+    pettyCashMetrics();
+
+  if (petty.balance <= 0) {
+    toast(
+      "مانده‌ای برای برگشت از تنخواه وجود ندارد.",
+      true
+    );
+    return;
+  }
+
+
+  modal(`
+
+    <div class="modal-title">
+      <span>PETTY CASH RETURN</span>
+      <h2>برگشت وجه از تنخواه</h2>
+      <p>
+        این عملیات مانده رزروشده تنخواه را کم می‌کند و مبلغ را دوباره وارد وجه قابل تقسیم می‌کند.
+      </p>
+    </div>
+
+    <div
+      class="panel"
+      style="margin-bottom:12px"
+    >
+      مانده فعلی تنخواه:
+      <b>${money(petty.balance)}</b>
+    </div>
+
+    <form
+      id="pettyCashReturnForm"
+      class="form-grid"
+    >
+
+      ${formField(
+        "مبلغ برگشت",
+        "amount",
+        "number"
+      )}
+
+      ${formField(
+        "تاریخ",
+        "transaction_date",
+        "date"
+      )}
+
+      ${formField(
+        "شرح",
+        "description",
+        "text",
+        "",
+        "برگشت از تنخواه"
+      )}
+
+      <button
+        class="primary full submit"
+        type="submit"
+      >
+        ثبت برگشت وجه
+      </button>
+
+    </form>
+  `);
+
+
+  $("#pettyCashReturnForm")
+    .onsubmit =
+      async e => {
+
+        e.preventDefault();
+
+        const data =
+          formDataObject(
+            e.target
+          );
+
+        const amount =
+          Number(
+            rawNumber(
+              data.amount
+            ) || 0
+          );
+
+        if (
+          amount <= 0 ||
+          amount >
+          petty.balance
+        ) {
+          toast(
+            "مبلغ برگشت معتبر نیست.",
+            true
+          );
+          return;
+        }
+
+        await submitPost(
+          "returnPettyCash",
+          {
+            ...data,
+            amount
+          },
+          "وجه از تنخواه برگشت داده شد"
+        );
+      };
+}
+
+
+function editPartnerShares() {
+
+  const s = {
+    partner1_name:"شریک اول",
+    partner1_percent:50,
+    partner2_name:"شریک دوم",
+    partner2_percent:50,
+    ...state.financeSettings
+  };
+
+
+  modal(`
+
+    <div class="modal-title">
+      <span>PARTNERS</span>
+      <h2>تنظیم سهم شرکا</h2>
+      <p>
+        مجموع درصد دو شریک باید دقیقاً 100٪ باشد.
+      </p>
+    </div>
+
+    <form
+      id="partnerShareForm"
+      class="form-grid"
+    >
+
+      ${formField(
+        "نام شریک اول",
+        "partner1_name",
+        "text",
+        "",
+        s.partner1_name
+      )}
+
+      ${formField(
+        "درصد شریک اول",
+        "partner1_percent",
+        "number",
+        "",
+        s.partner1_percent
+      )}
+
+      ${formField(
+        "نام شریک دوم",
+        "partner2_name",
+        "text",
+        "",
+        s.partner2_name
+      )}
+
+      ${formField(
+        "درصد شریک دوم",
+        "partner2_percent",
+        "number",
+        "",
+        s.partner2_percent
+      )}
+
+      <button
+        class="primary full submit"
+        type="submit"
+      >
+        ذخیره سهم شرکا
+      </button>
+
+    </form>
+  `);
+
+
+  $("#partnerShareForm")
+    .onsubmit =
+      async e => {
+
+        e.preventDefault();
+
+        const data =
+          formDataObject(
+            e.target
+          );
+
+        const p1 =
+          Number(
+            rawNumber(
+              data.partner1_percent
+            ) || 0
+          );
+
+        const p2 =
+          Number(
+            rawNumber(
+              data.partner2_percent
+            ) || 0
+          );
+
+        if (
+          p1 < 0 ||
+          p2 < 0 ||
+          p1 + p2 !== 100
+        ) {
+          toast(
+            "مجموع درصد دو شریک باید دقیقاً 100٪ باشد.",
+            true
+          );
+          return;
+        }
+
+        await submitPost(
+          "updateFinanceSettings",
+          {
+            ...data,
+            partner1_percent:p1,
+            partner2_percent:p2
+          },
+          "سهم شرکا ذخیره شد"
+        );
+      };
+}
+
+
 function renderFinance() {
 
   title(
@@ -4791,6 +5231,37 @@ function renderFinance() {
 
   const profit =
     revenue - expense;
+
+  const petty =
+    pettyCashMetrics();
+
+  const distributableProfit =
+    profit -
+    petty.balance;
+
+  const financeSettings = {
+    partner1_name:"شریک اول",
+    partner1_percent:50,
+    partner2_name:"شریک دوم",
+    partner2_percent:50,
+    ...state.financeSettings
+  };
+
+  const partner1Share =
+    distributableProfit *
+    Number(
+      financeSettings.partner1_percent ||
+      0
+    ) /
+    100;
+
+  const partner2Share =
+    distributableProfit *
+    Number(
+      financeSettings.partner2_percent ||
+      0
+    ) /
+    100;
 
   const margin =
     revenue
@@ -4902,6 +5373,203 @@ function renderFinance() {
       </div>
 
     </div>
+
+
+    <section
+      class="panel"
+      style="margin-top:14px"
+    >
+
+      <div class="panel-head">
+
+        <div>
+          <h3>تنخواه و سود قابل تقسیم</h3>
+          <p>
+            مانده تنخواه پول آکادمی است، اما تا زمانی که در تنخواه باقی مانده بین شرکا تقسیم نمی‌شود.
+          </p>
+        </div>
+
+        <div
+          style="
+            display:flex;
+            gap:8px;
+            flex-wrap:wrap;
+          "
+        >
+          <button
+            class="primary"
+            data-action="newPettyCashReserve"
+          >
+            ＋ شارژ تنخواه
+          </button>
+
+          <button
+            class="secondary glass-button"
+            data-action="newPettyExpense"
+          >
+            ＋ هزینه از تنخواه
+          </button>
+
+          <button
+            class="secondary glass-button"
+            data-action="returnPettyCash"
+          >
+            ↩ برگشت وجه
+          </button>
+
+          <button
+            class="secondary glass-button"
+            data-action="editPartnerShares"
+          >
+            ⚙ سهم شرکا
+          </button>
+        </div>
+
+      </div>
+
+
+      <div class="kpi-grid" style="margin-top:10px">
+
+        <div class="kpi">
+          <span>کل شارژ تنخواه</span>
+          <strong>${money(petty.allocated)}</strong>
+          <small>انتقال به تنخواه؛ هزینه نیست</small>
+        </div>
+
+        <div class="kpi danger">
+          <span>خرج‌شده از تنخواه</span>
+          <strong>${money(petty.spent)}</strong>
+          <small>هزینه واقعی ثبت‌شده</small>
+        </div>
+
+        <div class="kpi warning">
+          <span>مانده تنخواه</span>
+          <strong>${money(petty.balance)}</strong>
+          <small>فعلاً غیرقابل تقسیم</small>
+        </div>
+
+        <div class="kpi success">
+          <span>سود قابل تقسیم</span>
+          <strong>${money(distributableProfit)}</strong>
+          <small>سود خالص منهای مانده تنخواه</small>
+        </div>
+
+      </div>
+
+
+      <div
+        class="finance-strip"
+        style="margin-top:12px"
+      >
+
+        <div>
+          <span>
+            ${esc(financeSettings.partner1_name)}
+            (${faNum(financeSettings.partner1_percent)}٪)
+          </span>
+          <strong>${money(partner1Share)}</strong>
+        </div>
+
+        <div>
+          <span>
+            ${esc(financeSettings.partner2_name)}
+            (${faNum(financeSettings.partner2_percent)}٪)
+          </span>
+          <strong>${money(partner2Share)}</strong>
+        </div>
+
+        <div>
+          <span>برگشت از تنخواه</span>
+          <strong>${money(petty.returned)}</strong>
+        </div>
+
+      </div>
+
+
+      ${
+        state.pettyCashTransactions.length
+          ? `
+            <div
+              class="lead-list"
+              style="margin-top:14px"
+            >
+              ${
+                state.pettyCashTransactions
+                  .slice()
+                  .reverse()
+                  .slice(0,10)
+                  .map(tx => {
+
+                    const label =
+                      tx.type === "reserve_add"
+                        ? "شارژ تنخواه"
+                        : tx.type === "reserve_return"
+                          ? "برگشت از تنخواه"
+                          : "هزینه از تنخواه";
+
+                    const sign =
+                      tx.type === "reserve_add"
+                        ? "+"
+                        : "−";
+
+                    return `
+                      <div
+                        class="lead-row"
+                        style="cursor:default"
+                      >
+                        <div class="avatar">
+                          ${sign}
+                        </div>
+
+                        <div class="lead-main">
+                          <b>${label}</b>
+                          <span>
+                            ${esc(tx.description || "")}
+                            ${
+                              tx.course_id
+                                ? " · " +
+                                  esc(
+                                    courseName(
+                                      tx.course_id
+                                    ) || ""
+                                  )
+                                : ""
+                            }
+                          </span>
+                        </div>
+
+                        <div class="lead-end">
+                          <b>
+                            ${money(tx.amount)}
+                          </b>
+                          <small>
+                            ${dateFa(
+                              tx.transaction_date ||
+                              tx.created_at
+                            )}
+                          </small>
+                        </div>
+                      </div>
+                    `;
+                  })
+                  .join("")
+              }
+            </div>
+          `
+          : `
+            <div
+              class="empty"
+              style="margin-top:12px"
+            >
+              <b>هنوز گردش تنخواهی ثبت نشده</b>
+              <span>
+                اولین مبلغ رزرو تنخواه را ثبت کنید.
+              </span>
+            </div>
+          `
+      }
+
+    </section>
 
 
     <div class="panel" style="margin-top:14px">
@@ -11371,6 +12039,21 @@ function openAction(action) {
   if (action === "newExpense")
     return newExpense();
 
+  if (action === "newPettyExpense")
+    return newExpense(
+      null,
+      "petty_cash"
+    );
+
+  if (action === "newPettyCashReserve")
+    return newPettyCashReserve();
+
+  if (action === "returnPettyCash")
+    return returnPettyCash();
+
+  if (action === "editPartnerShares")
+    return editPartnerShares();
+
   if (action === "newPayment")
     return newPayment();
 
@@ -12079,6 +12762,40 @@ function editExpense(expense) {
         expense.amount || ""
       )}
 
+      ${selectField(
+        "منبع پرداخت",
+        "payment_source",
+        `
+          <option
+            value="direct"
+            ${
+              String(
+                expense.payment_source ||
+                "direct"
+              ) === "direct"
+                ? "selected"
+                : ""
+            }
+          >
+            پرداخت مستقیم آکادمی
+          </option>
+
+          <option
+            value="petty_cash"
+            ${
+              String(
+                expense.payment_source ||
+                ""
+              ) === "petty_cash"
+                ? "selected"
+                : ""
+            }
+          >
+            تنخواه مدیر
+          </option>
+        `
+      )}
+
       ${formField(
         "شرح",
         "description",
@@ -12130,7 +12847,7 @@ function editExpense(expense) {
         e.preventDefault();
 
         await submitPost(
-          "updateExpense",
+          "updateExpenseWithSource",
           {
             ...formDataObject(
               e.target
@@ -12207,7 +12924,7 @@ function editExpense(expense) {
 }
 
 
-function newExpense(selectedCourse = null) {
+function newExpense(selectedCourse = null, paymentSource = "direct") {
 
   modal(`
 
@@ -12302,6 +13019,28 @@ function newExpense(selectedCourse = null) {
           "amount",
           "number",
           ""
+        )
+      }
+
+      ${
+        selectField(
+          "منبع پرداخت",
+          "payment_source",
+          `
+            <option
+              value="direct"
+              ${paymentSource === "direct" ? "selected" : ""}
+            >
+              پرداخت مستقیم آکادمی
+            </option>
+
+            <option
+              value="petty_cash"
+              ${paymentSource === "petty_cash" ? "selected" : ""}
+            >
+              تنخواه مدیر
+            </option>
+          `
         )
       }
 
