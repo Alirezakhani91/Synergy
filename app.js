@@ -3230,9 +3230,67 @@ async function deleteFinalCustomer(
 ========================================================= */
 
 function courseStudents(courseId) {
-  return state.students.filter(
-    s => String(s.course_id) === String(courseId)
-  );
+
+  const directStudents =
+    state.students.filter(
+      s =>
+        String(s.course_id) ===
+        String(courseId)
+    );
+
+  const registeredLeads =
+    state.leads.filter(
+      l =>
+        String(l.course_id) ===
+        String(courseId) &&
+        (
+          l.status === "registered" ||
+          l.status === "paid"
+        )
+    );
+
+  const result = [];
+  const seen = new Set();
+
+  directStudents.forEach(s => {
+
+    const key =
+      s.lead_id
+        ? `lead:${s.lead_id}`
+        : `student:${s.student_id}`;
+
+    if (seen.has(key)) return;
+
+    seen.add(key);
+    result.push(s);
+  });
+
+  registeredLeads.forEach(l => {
+
+    const key =
+      `lead:${l.lead_id}`;
+
+    if (seen.has(key)) return;
+
+    seen.add(key);
+
+    result.push({
+      student_id:
+        l.converted_student_id || "",
+      lead_id:
+        l.lead_id || "",
+      full_name:
+        l.full_name || "",
+      mobile:
+        l.mobile || "",
+      course_id:
+        l.course_id || "",
+      status:"active",
+      _virtual_from_lead:true
+    });
+  });
+
+  return result;
 }
 
 function courseLeads(courseId) {
