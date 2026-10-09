@@ -4816,7 +4816,9 @@ function pettyCashMetrics() {
       .filter(
         x =>
           x.type ===
-          "petty_expense"
+            "petty_expense" ||
+          x.type ===
+            "petty_purchase"
       )
       .reduce(
         (sum,x) =>
@@ -5247,7 +5249,7 @@ function renderFinance() {
         <div class="kpi danger">
           <span>خرج‌شده از تنخواه</span>
           <strong>${money(petty.spent)}</strong>
-          <small>هزینه واقعی ثبت‌شده</small>
+          <small>کل پرداخت‌شده از تنخواه</small>
         </div>
 
         <div class="kpi warning">
@@ -5301,7 +5303,9 @@ function renderFinance() {
                         ? "شارژ تنخواه"
                         : tx.type === "reserve_return"
                           ? "برگشت از تنخواه"
-                          : "هزینه از تنخواه";
+                          : tx.type === "petty_purchase"
+                            ? "خرید انبار از تنخواه"
+                            : "هزینه از تنخواه";
 
                     const sign =
                       tx.type === "reserve_add"
@@ -7276,6 +7280,53 @@ function editPurchase(purchase) {
             : ""
         )}
 
+        ${selectField(
+          "منبع پرداخت",
+          "payment_source",
+          `
+            <option
+              value="direct"
+              ${
+                String(
+                  purchase.payment_source ||
+                  "direct"
+                ) === "direct"
+                  ? "selected"
+                  : ""
+              }
+            >
+              پرداخت مستقیم آکادمی
+            </option>
+
+            <option
+              value="petty_cash"
+              ${
+                String(
+                  purchase.payment_source ||
+                  ""
+                ) === "petty_cash"
+                  ? "selected"
+                  : ""
+              }
+            >
+              تنخواه مدیر
+            </option>
+          `
+        )}
+
+        <div
+          class="field"
+          style="
+            justify-content:center;
+            font-size:10px;
+            line-height:1.8;
+            opacity:.8;
+          "
+        >
+          مانده فعلی تنخواه:
+          <b>${money(pettyCashMetrics().balance)}</b>
+        </div>
+
         <label class="field">
           <span>توضیحات</span>
           <input
@@ -8177,6 +8228,9 @@ function editPurchase(purchase) {
               base.invoice_no || "",
             purchase_date:
               base.purchase_date || "",
+            payment_source:
+              base.payment_source ||
+              "direct",
             notes:
               base.notes || "",
             items,
@@ -8992,6 +9046,34 @@ async function newPurchase() {
           "date"
         )}
 
+        ${selectField(
+          "منبع پرداخت",
+          "payment_source",
+          `
+            <option value="direct">
+              پرداخت مستقیم آکادمی
+            </option>
+
+            <option value="petty_cash">
+              تنخواه مدیر
+            </option>
+          `
+        )}
+
+        <div
+          id="purchasePaymentSourceHelp"
+          class="field"
+          style="
+            justify-content:center;
+            font-size:10px;
+            line-height:1.8;
+            opacity:.8;
+          "
+        >
+          مانده تنخواه:
+          <b>${money(pettyCashMetrics().balance)}</b>
+        </div>
+
         <label class="field">
 
           <span>توضیحات</span>
@@ -9760,6 +9842,9 @@ async function newPurchase() {
             base.invoice_no || "",
           purchase_date:
             base.purchase_date || "",
+          payment_source:
+            base.payment_source ||
+            "direct",
           notes:
             base.notes || "",
           items,
