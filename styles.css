@@ -3423,3 +3423,100 @@ body{
   }
 }
 
+
+
+/* =========================================================
+   MOBILE SAFETY OVERRIDES — V13.4
+   Prevent saved bright theme settings from washing out
+   financial cards / connection state on small screens.
+========================================================= */
+
+@media(max-width:900px){
+
+  .petty-cash-section{
+    background:
+      linear-gradient(
+        155deg,
+        rgba(8,12,28,.99),
+        rgba(24,18,48,.99)
+      ) !important;
+
+    border:
+      1px solid
+      rgba(255,255,255,.18) !important;
+  }
+
+  .petty-cash-section .kpi{
+    background:
+      linear-gradient(
+        150deg,
+        rgba(11,16,36,.99),
+        rgba(31,23,58,.99)
+      ) !important;
+
+    border:
+      1px solid
+      rgba(255,255,255,.16) !important;
+
+    filter:none !important;
+    opacity:1 !important;
+  }
+
+  .petty-cash-section .kpi:after{
+    opacity:.18 !important;
+  }
+
+  .petty-cash-section .kpi span,
+  .petty-cash-section .kpi small{
+    color:
+      rgba(255,255,255,.78) !important;
+  }
+
+  .petty-cash-section .kpi strong{
+    color:#ffffff !important;
+    opacity:1 !important;
+  }
+
+  .petty-cash-section .panel-head p{
+    color:
+      rgba(255,255,255,.74) !important;
+  }
+
+  .petty-cash-section .secondary.glass-button{
+    background:
+      rgba(15,20,44,.96) !important;
+
+    color:#ffffff !important;
+
+    border:
+      1px solid
+      rgba(255,255,255,.17) !important;
+  }
+
+  .petty-cash-section .primary{
+    color:#ffffff !important;
+  }
+
+  .sidebar .connection{
+    background:
+      rgba(11,16,36,.92) !important;
+
+    border:
+      1px solid
+      rgba(255,255,255,.14) !important;
+
+    color:#ffffff !important;
+  }
+
+  .sidebar .connection span,
+  .sidebar .connection small{
+    color:
+      rgba(255,255,255,.78) !important;
+  }
+
+  .sidebar .side-footer .nav-btn,
+  .sidebar .side-footer button{
+    color:#ffffff !important;
+  }
+}
+
