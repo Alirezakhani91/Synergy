@@ -330,10 +330,25 @@ function j2d(jy, jm, jd) {
 }
 
 function d2j(jdn) {
-  const g = d2g(jdn);
-  let jy = g.gy - 621;
 
-  const r = jalCal(jy);
+  const g =
+    d2g(jdn);
+
+  let jy =
+    g.gy - 621;
+
+  /*
+    IMPORTANT:
+    Keep the leap information from the ORIGINAL candidate Jalali year.
+    When the Gregorian date belongs to the previous Jalali year,
+    the algorithm decrements jy, but the leap adjustment must still
+    use this original r.leap value.
+
+    The previous implementation recalculated jalCal(jy) after jy--,
+    which caused one-day errors around Esfand / Farvardin boundaries.
+  */
+  const r =
+    jalCal(jy);
 
   const jdn1f =
     g2d(
@@ -346,7 +361,9 @@ function d2j(jdn) {
     jdn - jdn1f;
 
   if (k >= 0) {
+
     if (k <= 185) {
+
       return {
         jy,
         jm:
@@ -359,12 +376,20 @@ function d2j(jdn) {
     }
 
     k -= 186;
+
   } else {
+
     jy -= 1;
+
     k += 179;
 
+    /*
+      This must use r.leap from the original year above.
+      r.leap === 1 means the previous Jalali year had 30 Esfand
+      in this branch of the Borkowski conversion algorithm.
+    */
     if (
-      jalCal(jy).leap === 1
+      r.leap === 1
     ) {
       k += 1;
     }
@@ -552,6 +577,44 @@ function jalaliDate(v) {
   }
 }
 
+function persianWeekdayFromGregorian(
+  gy,
+  gm,
+  gd
+) {
+
+  /*
+    g2d() returns a day number with:
+    Monday=0, Tuesday=1, ..., Friday=4, Saturday=5, Sunday=6.
+    Using it directly avoids timezone / DST shifts from new Date().
+  */
+  const names = [
+    "دوشنبه",
+    "سه‌شنبه",
+    "چهارشنبه",
+    "پنجشنبه",
+    "جمعه",
+    "شنبه",
+    "یکشنبه"
+  ];
+
+  const index =
+    mod(
+      g2d(
+        gy,
+        gm,
+        gd
+      ),
+      7
+    );
+
+  return (
+    names[index] ||
+    ""
+  );
+}
+
+
 function jalaliDateLong(v) {
 
   if (!v) return "—";
@@ -578,21 +641,12 @@ function jalaliDateLong(v) {
         gd
       );
 
-    const d =
-      new Date(
+    const weekday =
+      persianWeekdayFromGregorian(
         gy,
-        gm - 1,
+        gm,
         gd
       );
-
-    const weekday =
-      new Intl.DateTimeFormat(
-        "fa-IR",
-        {
-          weekday:
-            "long"
-        }
-      ).format(d);
 
     return (
       `${weekday}، ` +
@@ -902,16 +956,24 @@ function openJalaliPicker(
         1
       );
 
-    const firstDate =
-      new Date(
-        firstG.gy,
-        firstG.gm - 1,
-        firstG.gd
-      );
-
+    /*
+      Calendar starts on Saturday.
+      g2d modulo mapping:
+      Mon=0 Tue=1 Wed=2 Thu=3 Fri=4 Sat=5 Sun=6.
+      Convert that to:
+      Sat=0 Sun=1 Mon=2 Tue=3 Wed=4 Thu=5 Fri=6.
+    */
     const offset =
-      (firstDate.getDay() + 1) %
-      7;
+      mod(
+        g2d(
+          firstG.gy,
+          firstG.gm,
+          firstG.gd
+        ) -
+        5 +
+        7,
+        7
+      );
 
     const days =
       jalaliMonthLength(
